@@ -1,0 +1,75 @@
+/* Theme: green-yellow — "Lucky Clover". Forest green stage with golden yellow. */
+:root {
+  --sb-style-id: "spotlight";
+  --sb-bg: #061a07;
+  --sb-bg-2: #11491e;
+  --sb-fg: #f0fff4;
+  --sb-fg-soft: rgba(240, 255, 244, 0.78);
+  --sb-accent: #f9e655;
+  --sb-accent-2: #2ed573;
+  --sb-accent-3: #ffd166;
+  --sb-card: rgba(255, 255, 255, 0.05);
+  --sb-card-border: rgba(249, 230, 85, 0.22);
+  --sb-header-bg: rgba(6, 26, 7, 0.78);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(6, 26, 7, 0.94) 0%,
+    rgba(17, 73, 30, 0.55) 45%,
+    rgba(46, 213, 115, 0.22) 100%
+  );
+  --sb-page-pattern: radial-gradient(
+      1200px 600px at 100% -10%,
+      rgba(249, 230, 85, 0.28),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 30%,
+      rgba(46, 213, 115, 0.25),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 400px at 50% 110%,
+      rgba(255, 209, 102, 0.18),
+      transparent 60%
+    );
+
+  --bg: var(--sb-bg);
+  --text: var(--sb-fg);
+  --accent: var(--sb-accent);
+  --main-color: #11491e;
+  --main-section-background: #11491e;
+  --bg-color: #061a07;
+  --main-border-radius: 4px;
+  --text-color: #f0fff4;
+  --hero-color: #f0fff4;
+  --footer-text: #f0fff4;
+  --title-color: #f0fff4;
+  --title-color-hover: #f9e655;
+  --card-background: #f9e655;
+  --glossary-background: #f9e655;
+  --glossary-border-color: #f9e655;
+  --icon-background: #f9e655;
+  --icon-background-hover: #2ed573;
+  --card-color: #061a07;
+  --footer-special-background: rgba(17, 73, 30, 0.6);
+  --mainBtn-background: #f9e655;
+  --mainBtn-border: none;
+  --mainBtn-color: #061a07;
+  --mainBtnSpecial-background: #2ed573;
+  --mainBtnSpecial-border: #f9e655;
+  --pulse-color-first: #f9e655;
+  --pulse-color-second: #2ed573;
+  --pulse-box-shadow: 249, 230, 85;
+  --faq-color: #f0fff4;
+  --faq-border: 1px solid var(--faq-color-active);
+  --faq-color-active: #f9e655;
+}
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+a {
+  color: var(--sb-accent);
+}

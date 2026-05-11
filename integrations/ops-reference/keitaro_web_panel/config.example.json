@@ -1,0 +1,11 @@
+{
+  "keitaro_admin_url": "https://your-keitaro-domain.com",
+  "api_key": "PASTE_KEITARO_API_KEY_HERE",
+  "templates": {
+    "BD": {
+      "template_campaign_id": 32030,
+      "group_id": null,
+      "geo_label": "BANGLADESH"
+    }
+  }
+}

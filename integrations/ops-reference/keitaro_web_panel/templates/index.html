@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Keitaro Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg0:#0b0d12;
+      --bg1:#0f131b;
+      --card:#121826;
+      --text:#e7edf7;
+      --muted:#98a6bf;
+      --accent:#2a6df4;
+      --accent2:#1f56cd;
+      --border: rgba(120,140,190,.22);
+      --shadow: 0 18px 50px rgba(0,0,0,.55);
+      --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 15% 10%, rgba(42,109,244,.22), transparent 55%),
+        radial-gradient(900px 500px at 85% 10%, rgba(43,212,255,.12), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      min-height:100vh;
+      padding:22px;
+    }
+
+    .wrap{max-width:1100px;margin:0 auto;}
+
+    /* TOP BAR */
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      margin-bottom:14px;
+    }
+    .brand{display:flex;flex-direction:column;gap:4px;}
+    .brand h1{margin:0;font-size:22px;font-weight:900;letter-spacing:.2px;}
+    .brand .sub{color:var(--muted);font-size:13px;line-height:1.35;}
+
+    .topnav{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .navbtn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:11px 14px;            /* толще */
+      border-radius:14px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      text-decoration:none;
+      font-weight:900;
+      font-size:13px;
+      letter-spacing:.2px;
+      box-shadow: 0 10px 18px rgba(0,0,0,.22);
+      transition: transform .06s ease, filter .12s ease, background .12s ease, border-color .12s ease;
+      white-space:nowrap;
+    }
+    .navbtn:hover{
+      filter: brightness(1.10);
+      border-color: rgba(42,109,244,.55);
+      background: rgba(42,109,244,.12);
+    }
+    .navbtn:active{ transform: translateY(1px); }
+    .navbtn.primary{
+      background: linear-gradient(180deg, rgba(42,109,244,1), rgba(31,86,205,1));
+      border-color: rgba(42,109,244,.85);
+      box-shadow: 0 14px 26px rgba(42,109,244,.26);
+    }
+
+    /* CARD */
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid rgba(120,140,190,.20);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    /* GEO tabs */
+    .geo-tabs{
+      display:flex;
+      gap:10px;                     /* больше расстояние */
+      flex-wrap:wrap;
+      padding: 14px 18px;
+      border-bottom:1px solid rgba(120,140,190,.18);
+      background: rgba(0,0,0,.14);
+      overflow:auto;
+    }
+    .geo-tabs input{display:none;}
+    .tab{
+      cursor:pointer;
+      user-select:none;
+      padding:11px 14px;            /* толще */
+      border-radius:999px;
+      border:1px solid rgba(120,140,190,.25);
+      background: rgba(10,14,22,.60);
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:.2px;
+      transition: transform .06s ease, filter .12s ease, background .12s ease, border-color .12s ease;
+      white-space:nowrap;
+      box-shadow: 0 10px 18px rgba(0,0,0,.18);
+    }
+    .tab:hover{
+      border-color: rgba(42,109,244,.55);
+      background: rgba(42,109,244,.12);
+      filter: brightness(1.08);
+    }
+    .geo-tabs input:checked + .tab{
+      border-color: rgba(42,109,244,.92);
+      background: linear-gradient(180deg, rgba(42,109,244,.40), rgba(42,109,244,.16));
+      box-shadow: 0 14px 26px rgba(42,109,244,.22);
+    }
+
+    .pad{padding:18px;}
+
+    .label{
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .count{
+      font-variant-numeric: tabular-nums;
+      color:#cfe0ff;
+      background: rgba(42,109,244,.14);
+      border:1px solid rgba(42,109,244,.35);
+      padding:5px 10px;
+      border-radius:999px;
+      font-size:12px;
+    }
+
+    textarea{
+      width:100%;
+      min-height: 390px;
+      resize: vertical;
+      border-radius: 16px;
+      border: 1px solid rgba(120,140,190,.25);
+      background: rgba(8,10,15,.58);
+      color: var(--text);
+      padding: 14px 14px;
+      outline: none;
+      font-size:14px;
+      line-height:1.35;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+    }
+    textarea:focus{
+      border-color: rgba(42,109,244,.85);
+      box-shadow: 0 0 0 4px rgba(42,109,244,.18);
+    }
+
+    .actions{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top:14px;
+    }
+    .btn{
+      appearance:none;
+      border:none;
+      cursor:pointer;
+      border-radius: 14px;
+      padding: 12px 16px;          /* толще */
+      font-weight: 950;
+      font-size:14px;
+      letter-spacing:.2px;
+      transition: transform .06s ease, filter .12s ease, box-shadow .12s ease;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      white-space:nowrap;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{
+      background: linear-gradient(180deg, rgba(42,109,244,1), rgba(31,86,205,1));
+      color:white;
+      box-shadow: 0 14px 26px rgba(42,109,244,.28);
+    }
+    .btn.primary:hover{ filter: brightness(1.06); }
+    .btn.ghost{
+      background: rgba(255,255,255,.05);
+      border:1px solid rgba(120,140,190,.25);
+      color: var(--text);
+    }
+    .btn.ghost:hover{
+      border-color: rgba(42,109,244,.55);
+      background: rgba(42,109,244,.10);
+      filter: brightness(1.06);
+    }
+
+    .kbd{
+      margin-left:auto;
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+    .kbd span{
+      border:1px solid rgba(120,140,190,.22);
+      background: rgba(255,255,255,.04);
+      padding:4px 7px;
+      border-radius:10px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hint{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.45;}
+
+    .flash{
+      margin: 12px 0 0 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255,77,77,.10);
+      border:1px solid rgba(255,77,77,.25);
+      color:#ffd0d0;
+      font-size:13px;
+      line-height:1.35;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <div class="topbar">
+      <div class="brand">
+        <h1>Keitaro Campaign Link Generator</h1>
+        <div class="sub">Вставь домены → выбери GEO → получи ссылки + CSV</div>
+      </div>
+
+      <div class="topnav">
+        <a class="navbtn primary" href="/">Generator</a>
+        <a class="navbtn" href="/parser">Parser</a>
+        <a class="navbtn" href="/gsc">GSC</a>
+        <a class="navbtn" href="/logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <form id="genForm" method="post" action="/generate">
+
+        <div class="geo-tabs" id="geoTabs">
+          {% for g in geos %}
+            <label>
+              <input type="radio" name="geo" value="{{ g }}" {% if loop.first %}checked{% endif %}>
+              <span class="tab">{{ g }}</span>
+            </label>
+          {% endfor %}
+        </div>
+
+        <div class="pad">
+          {% with messages = get_flashed_messages() %}
+            {% if messages %}
+              <div class="flash">
+                {% for m in messages %}{{ m }}<br/>{% endfor %}
+              </div>
+            {% endif %}
+          {% endwith %}
+
+          <div class="label">
+            <div>Domains (1 per line)</div>
+            <div id="count" class="count">0 domains</div>
+          </div>
+
+          <textarea id="domains" name="domains" placeholder="ccbaji.biz&#10;bbhe.net&#10;hsd223.bet"></textarea>
+          <div class="hint">Можно вставлять с <b>http/https</b> и <b>www</b> — всё нормализуется.</div>
+
+          <div class="actions">
+            <button class="btn primary" type="submit">Generate</button>
+            <button class="btn ghost" type="button" id="clearBtn">Clear</button>
+
+            <div class="kbd">
+              <span>Ctrl</span><span>Enter</span><span>generate</span>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+
+  </div>
+
+  <script>
+    const ta = document.getElementById('domains');
+    const count = document.getElementById('count');
+    const clearBtn = document.getElementById('clearBtn');
+    const form = document.getElementById('genForm');
+    const geoTabs = document.getElementById('geoTabs');
+
+    function updateCount(){
+      const lines = ta.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      const n = lines.length;
+      count.textContent = n + (n === 1 ? ' domain' : ' domains');
+    }
+    ta.addEventListener('input', updateCount);
+    updateCount();
+
+    clearBtn.addEventListener('click', () => {
+      ta.value = '';
+      updateCount();
+      ta.focus();
+    });
+
+    // Ctrl+Enter -> submit
+    ta.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') form.submit();
+    });
+
+    // remember GEO
+    const LS_KEY = "keitaro_panel_geo";
+    function setFromLS(){
+      const saved = localStorage.getItem(LS_KEY);
+      if (!saved) return;
+      const input = geoTabs.querySelector(`input[name="geo"][value="${saved}"]`);
+      if (input) input.checked = true;
+    }
+    setFromLS();
+
+    geoTabs.addEventListener('change', () => {
+      const checked = geoTabs.querySelector('input[name="geo"]:checked');
+      if (checked) localStorage.setItem(LS_KEY, checked.value);
+    });
+
+    form.addEventListener('submit', () => {
+      const checked = geoTabs.querySelector('input[name="geo"]:checked');
+      if (checked) localStorage.setItem(LS_KEY, checked.value);
+    });
+  </script>
+</body>
+</html>

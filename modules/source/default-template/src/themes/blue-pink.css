@@ -1,0 +1,76 @@
+/* Theme: blue-pink — "Neon Boulevard". Deep blue with hot pink highlights. */
+:root {
+  --sb-style-id: "deco";
+  --sb-hero-align: right;
+  --sb-bg: #050b2e;
+  --sb-bg-2: #1f1f6b;
+  --sb-fg: #f5f3ff;
+  --sb-fg-soft: rgba(245, 243, 255, 0.78);
+  --sb-accent: #ff3da5;
+  --sb-accent-2: #5cd6ff;
+  --sb-accent-3: #ffd166;
+  --sb-card: rgba(255, 255, 255, 0.05);
+  --sb-card-border: rgba(255, 61, 165, 0.22);
+  --sb-header-bg: rgba(5, 11, 46, 0.78);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(5, 11, 46, 0.94) 0%,
+    rgba(31, 31, 107, 0.55) 45%,
+    rgba(255, 61, 165, 0.22) 100%
+  );
+  --sb-page-pattern: radial-gradient(
+      1200px 600px at 100% -10%,
+      rgba(255, 61, 165, 0.28),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 30%,
+      rgba(92, 214, 255, 0.25),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 400px at 50% 110%,
+      rgba(255, 209, 102, 0.18),
+      transparent 60%
+    );
+
+  --bg: var(--sb-bg);
+  --text: var(--sb-fg);
+  --accent: var(--sb-accent);
+  --main-color: #1f1f6b;
+  --main-section-background: #1f1f6b;
+  --bg-color: #050b2e;
+  --main-border-radius: 4px;
+  --text-color: #f5f3ff;
+  --hero-color: #f5f3ff;
+  --footer-text: #f5f3ff;
+  --title-color: #f5f3ff;
+  --title-color-hover: #ff3da5;
+  --card-background: #ff3da5;
+  --glossary-background: #ff3da5;
+  --glossary-border-color: #ff3da5;
+  --icon-background: #ff3da5;
+  --icon-background-hover: #5cd6ff;
+  --card-color: #050b2e;
+  --footer-special-background: rgba(31, 31, 107, 0.6);
+  --mainBtn-background: #ff3da5;
+  --mainBtn-border: none;
+  --mainBtn-color: #050b2e;
+  --mainBtnSpecial-background: #5cd6ff;
+  --mainBtnSpecial-border: #ff3da5;
+  --pulse-color-first: #ff3da5;
+  --pulse-color-second: #5cd6ff;
+  --pulse-box-shadow: 255, 61, 165;
+  --faq-color: #f5f3ff;
+  --faq-border: 1px solid var(--faq-color-active);
+  --faq-color-active: #ff3da5;
+}
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+a {
+  color: var(--sb-accent);
+}

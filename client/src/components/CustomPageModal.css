@@ -1,0 +1,363 @@
+.custom-page-modal-content {
+  background: white;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.page-name-section {
+  margin-bottom: 20px;
+}
+
+.page-name-section label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+  font-size: 13px;
+}
+
+.page-name-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.page-name-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.page-name-input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.blocks-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.selected-blocks-section {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 12px;
+  background-color: #fafafa;
+}
+
+.selected-blocks-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 0.9em;
+  color: #333;
+}
+
+.selected-blocks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 60px;
+}
+
+.selected-block-item-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--ui-surface) !important;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.selected-block-item-wrapper:hover {
+  background-color: #339cff;
+  border-color: #007bff;
+}
+
+.selected-block-item-wrapper.dragging {
+  opacity: 0.5;
+  border-color: #007bff;
+  background-color: #e7f3ff;
+}
+
+.selected-block-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: move;
+}
+
+.block-keywords-input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid #e3e6ea;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  background-color: #fff;
+  color: #333;
+  box-sizing: border-box;
+}
+
+.block-keywords-input::placeholder {
+  color: #aaa;
+  font-style: italic;
+}
+
+.block-keywords-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.18);
+}
+
+.block-keywords-input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.drag-handle {
+  color: #999;
+  cursor: grab;
+  font-size: 14px;
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.block-name {
+  flex: 1;
+  font-size: 13px;
+  color: #333;
+}
+
+.remove-block-btn {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.remove-block-btn:hover {
+  background-color: #f8d7da;
+}
+
+.custom-block-section {
+  margin-top: 10px;
+}
+
+.add-custom-block-btn {
+  padding: 8px 16px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.add-custom-block-btn:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+.add-custom-block-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.add-custom-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.add-custom-block-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.custom-block-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.custom-block-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.add-block-btn,
+.cancel-add-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.add-block-btn {
+  background-color: #28a745;
+  color: white;
+}
+
+.add-block-btn:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.add-block-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel-add-btn {
+  background-color: #6c757d;
+  color: white;
+}
+
+.cancel-add-btn:hover {
+  background-color: #5a6268;
+}
+
+.empty-blocks {
+  color: #999;
+  font-size: 12px;
+  font-style: italic;
+  padding: 10px;
+  text-align: center;
+}
+
+.error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 12px;
+}
+
+.template-select {
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 11px;
+  background: white;
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.template-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modal-tabs {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #f8f9fa;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.tab-button:hover:not(:disabled) {
+  background-color: #e9ecef;
+  color: #333;
+}
+
+.tab-button.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+  background-color: white;
+}
+
+.tab-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.faq-tab-content {
+  padding: 20px 0;
+}
+
+.faq-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.faq-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.faq-form .form-group label {
+  font-weight: 600;
+  color: #333;
+  font-size: 13px;
+}
+
+.faq-form .form-group input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+  max-width: 200px;
+}
+
+.faq-form .form-group input[type="number"]:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.faq-form .form-group input[type="number"]:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.faq-form .form-group small {
+  font-size: 12px;
+  color: #666;
+  margin-top: -4px;
+}
+

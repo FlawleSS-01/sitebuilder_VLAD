@@ -1,0 +1,21 @@
+node_modules/
+client/node_modules/
+dist/
+.env
+.env.*
+*.log
+.DS_Store
+client/dist/
+projects/
+modules/google-accounts/*
+
+# Архивы слишком большие для GitHub (>100 MB)
+top_generator_na_dikom_zapade.zip
+
+# Секреты Google OAuth / Service Account (референс Keitaro — только локально)
+integrations/ops-reference/keitaro_web_panel/gsk/sheets_sa.json
+integrations/ops-reference/keitaro_web_panel/gsk/credentials.json
+integrations/ops-reference/keitaro_web_panel/gsk/state.json
+integrations/ops-reference/keitaro_web_panel/gsk/accounts_map.json
+integrations/ops-reference/keitaro_web_panel/gsk/**/token.json
+

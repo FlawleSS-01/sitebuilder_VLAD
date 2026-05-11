@@ -1,0 +1,76 @@
+/* Theme 4 — "Cyber Neon": near-black stage with electric cyan and lime. */
+:root {
+  --sb-style-id: "cyber";
+  --sb-hero-align: right;
+  --sb-bg: #050614;
+  --sb-bg-2: #0d0f2e;
+  --sb-fg: #eafaff;
+  --sb-fg-soft: rgba(234, 250, 255, 0.78);
+  --sb-accent: #00f5d4;
+  --sb-accent-2: #ff00aa;
+  --sb-accent-3: #b1fa55;
+  --sb-card: rgba(0, 245, 212, 0.06);
+  --sb-card-border: rgba(0, 245, 212, 0.22);
+  --sb-header-bg: rgba(5, 6, 20, 0.82);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(5, 6, 20, 0.94) 0%,
+    rgba(13, 15, 46, 0.55) 45%,
+    rgba(0, 245, 212, 0.18) 100%
+  );
+  --sb-page-pattern: radial-gradient(
+      1200px 600px at 100% -10%,
+      rgba(0, 245, 212, 0.25),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 30%,
+      rgba(255, 0, 170, 0.22),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 400px at 50% 110%,
+      rgba(177, 250, 85, 0.18),
+      transparent 60%
+    );
+
+  --bg: var(--sb-bg);
+  --text: var(--sb-fg);
+  --accent: var(--sb-accent);
+  --main-color: #0d0f2e;
+  --main-section-background: #0d0f2e;
+  --bg-color: #050614;
+  --main-border-radius: 4px;
+  --text-color: #eafaff;
+  --hero-color: #eafaff;
+  --footer-text: #eafaff;
+  --title-color: #eafaff;
+  --title-color-hover: #00f5d4;
+  --card-background: #00f5d4;
+  --glossary-background: #00f5d4;
+  --glossary-border-color: #00f5d4;
+  --icon-background: #00f5d4;
+  --icon-background-hover: #ff00aa;
+  --card-color: #050614;
+  --footer-special-background: rgba(13, 15, 46, 0.6);
+  --mainBtn-background: #00f5d4;
+  --mainBtn-border: none;
+  --mainBtn-color: #050614;
+  --mainBtnSpecial-background: #ff00aa;
+  --mainBtnSpecial-border: #00f5d4;
+  --pulse-color-first: #00f5d4;
+  --pulse-color-second: #ff00aa;
+  --pulse-box-shadow: 0, 245, 212;
+  --faq-color: #eafaff;
+  --faq-border: 1px solid var(--faq-color-active);
+  --faq-color-active: #00f5d4;
+}
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+a {
+  color: var(--sb-accent);
+}

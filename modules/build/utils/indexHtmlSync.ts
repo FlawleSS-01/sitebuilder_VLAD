@@ -1,0 +1,353 @@
+import fs from "fs";
+import path from "path";
+import {
+  buildJsonLdGraph,
+  normalizeSiteOrigin,
+  summaryFromPageJson,
+  type PageSeoSummary,
+} from "./jsonLdBuilder.js";
+import { writeSeoArtifacts } from "./seoArtifacts.js";
+
+const PAGE_FILE_MAP: Record<string, string> = {
+  homepage: "main.json",
+  casino: "casino.json",
+  slots: "slots.json",
+  games: "games.json",
+  betting: "betting.json",
+  app: "app.json",
+  login: "login.json",
+};
+
+const INJECT_START = "<!-- SITE_BUILDER_HEAD_INJECT:start -->";
+const INJECT_END = "<!-- SITE_BUILDER_HEAD_INJECT:end -->";
+
+function getPageFileName(
+  pageType: string,
+  pageName?: string,
+  isCustom?: boolean
+): string {
+  if (PAGE_FILE_MAP[pageType]) return PAGE_FILE_MAP[pageType];
+  if (isCustom && pageName) {
+    const normalizedName = pageName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    return `${normalizedName}.json`;
+  }
+  return `${pageType}.json`;
+}
+
+function getPageDataKey(
+  pageType: string,
+  pageName?: string,
+  isCustom?: boolean
+): string {
+  if (pageName && pageName.trim()) {
+    const normalizedSlug = pageName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    return normalizedSlug.replace(/-+/g, "-").replace(/^-|-$/g, "");
+  }
+  if (pageType === "homepage") return "main";
+  if (PAGE_FILE_MAP[pageType]) return pageType;
+  return pageType;
+}
+
+function routePathForKey(key: string): string {
+  return key === "main" ? "/" : `/${key}`;
+}
+
+/**
+ * Разрешает путь к JSON страницы для дефолтной локали (или единственного файла).
+ */
+function resolvePageJsonPath(
+  projectPath: string,
+  pageType: string,
+  pageInfo: Record<string, unknown>,
+  defaultLocale: string,
+  projectLocales: string[]
+): string | null {
+  const pagesDir = path.join(projectPath, "src", "pages");
+  const pageName = pageInfo.pageName as string | undefined;
+  const isCustom = !!pageInfo.isCustom;
+
+  const localeFiles = pageInfo.localeFiles as Record<string, string> | undefined;
+  if (localeFiles && typeof localeFiles === "object") {
+    const rel =
+      localeFiles[defaultLocale] ||
+      localeFiles[projectLocales[0]] ||
+      Object.values(localeFiles)[0];
+    if (rel) return path.join(projectPath, rel);
+  }
+
+  const singleFile = pageInfo.filePath as string | undefined;
+  if (singleFile && typeof singleFile === "string") {
+    const abs = path.join(projectPath, singleFile);
+    if (fs.existsSync(abs)) return abs;
+  }
+
+  const fileName = getPageFileName(pageType, pageName, isCustom);
+  const direct = path.join(pagesDir, fileName);
+  if (fs.existsSync(direct)) return direct;
+
+  return null;
+}
+
+function readJsonSafe(filePath: string): unknown | null {
+  try {
+    const t = fs.readFileSync(filePath, "utf-8");
+    return JSON.parse(t);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Собирает SEO-сводку по маршрутам из project-settings и файлов страниц.
+ */
+export function collectPageSeoSummaries(
+  projectPath: string,
+  settings: Record<string, unknown>
+): PageSeoSummary[] {
+  const pages = settings.pages as Record<string, Record<string, unknown>> | undefined;
+  if (!pages) return [];
+
+  const defaultLocale =
+    (settings.defaultLocale as string) ||
+    (Array.isArray(settings.locales) && settings.locales.length
+      ? (settings.locales as string[])[0]
+      : "en");
+  const projectLocales: string[] = Array.isArray(settings.locales)
+    ? (settings.locales as string[])
+    : [defaultLocale];
+
+  const summaries: PageSeoSummary[] = [];
+
+  for (const [pageType, pageInfo] of Object.entries(pages)) {
+    if (!pageInfo?.generated) continue;
+
+    const key = getPageDataKey(
+      pageType,
+      pageInfo.pageName as string | undefined,
+      !!pageInfo.isCustom
+    );
+    const pathRoute = routePathForKey(key);
+
+    const jsonPath = resolvePageJsonPath(
+      projectPath,
+      pageType,
+      pageInfo,
+      defaultLocale,
+      projectLocales
+    );
+    let name = (pageInfo.displayName as string) || "";
+    let description = "";
+
+    if (jsonPath) {
+      const data = readJsonSafe(jsonPath);
+      const s = summaryFromPageJson(data);
+      if (!name) name = s.name;
+      description = s.description;
+    }
+    if (!name) {
+      name = pathRoute === "/" ? "Home" : pathRoute.replace(/^\//, "");
+    }
+
+    summaries.push({ path: pathRoute, name, description });
+  }
+
+  if (!summaries.some((s) => s.path === "/")) {
+    summaries.unshift({
+      path: "/",
+      name: (settings.brand as string) || "Home",
+      description: "",
+    });
+  }
+
+  return summaries;
+}
+
+/**
+ * Обновляет index.html: meta description, title (если задан), JSON-LD, лёгкие performance-meta.
+ */
+export function syncIndexHtmlHead(projectPath: string): void {
+  const settingsPath = path.join(projectPath, "project-settings.json");
+  const indexHtmlPath = path.join(projectPath, "index.html");
+
+  if (!fs.existsSync(indexHtmlPath)) {
+    console.warn(`[build] index.html не найден: ${indexHtmlPath}`);
+    return;
+  }
+
+  let settings: Record<string, unknown> = {};
+  if (fs.existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    } catch {
+      settings = {};
+    }
+  }
+
+  const brand = (settings.brand as string) || "Site";
+  const domain = settings.domain as string | undefined;
+  const origin = normalizeSiteOrigin(domain);
+  const inLanguage =
+    (settings.htmlLang as string) ||
+    (settings.defaultLocale as string) ||
+    "en";
+
+  const projectLocales: string[] = Array.isArray(settings.locales)
+    ? (settings.locales as string[])
+    : [inLanguage];
+  const defaultLocale =
+    (settings.defaultLocale as string) || projectLocales[0] || inLanguage;
+  const multiLocale = projectLocales.length > 1;
+
+  const pageSummaries = collectPageSeoSummaries(projectPath, settings);
+  const home = pageSummaries.find((s) => s.path === "/");
+  const metaDescription = truncateMeta(
+    home?.description || `Official site — ${brand}.`
+  );
+  const homeName = home?.name || brand;
+
+  const graph = buildJsonLdGraph({
+    origin,
+    inLanguage,
+    brand,
+    pages:
+      pageSummaries.length > 0
+        ? pageSummaries
+        : [{ path: "/", name: brand, description: metaDescription }],
+  });
+
+  const jsonStr = JSON.stringify(graph).replace(/</g, "\\u003c");
+
+  // Hreflang anchors — only meaningful for multi-locale projects. The
+  // default-template SPA serves every locale at the same URL (locale is
+  // chosen via context, not URL), so href is identical for each tag,
+  // but the alternates still help search engines surface localised
+  // versions if/when per-locale URLs are introduced.
+  const hreflangTags: string[] = [];
+  if (multiLocale) {
+    for (const loc of projectLocales) {
+      hreflangTags.push(
+        `<link rel="alternate" hreflang="${escapeAttr(
+          loc
+        )}" href="${escapeAttr(origin + "/")}" />`
+      );
+    }
+    hreflangTags.push(
+      `<link rel="alternate" hreflang="x-default" href="${escapeAttr(
+        origin + "/"
+      )}" />`
+    );
+  }
+
+  // Open Graph + Twitter Card meta — covers Facebook/LinkedIn previews
+  // and Twitter/X cards. Image is the favicon-style logo if present;
+  // we don't reference a generated AI image because those filenames are
+  // unstable across regenerations.
+  const ogImage = `${origin}/images/logo.webp`;
+  const ogTags = [
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="${escapeAttr(brand)}" />`,
+    `<meta property="og:title" content="${escapeAttr(homeName)}" />`,
+    `<meta property="og:description" content="${escapeAttr(metaDescription)}" />`,
+    `<meta property="og:url" content="${escapeAttr(origin + "/")}" />`,
+    `<meta property="og:image" content="${escapeAttr(ogImage)}" />`,
+    `<meta property="og:locale" content="${escapeAttr(
+      inLanguage.replace("-", "_")
+    )}" />`,
+  ];
+  if (multiLocale) {
+    for (const loc of projectLocales) {
+      if (loc !== inLanguage) {
+        ogTags.push(
+          `<meta property="og:locale:alternate" content="${escapeAttr(
+            loc.replace("-", "_")
+          )}" />`
+        );
+      }
+    }
+  }
+  const twitterTags = [
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="${escapeAttr(homeName)}" />`,
+    `<meta name="twitter:description" content="${escapeAttr(metaDescription)}" />`,
+    `<meta name="twitter:image" content="${escapeAttr(ogImage)}" />`,
+  ];
+
+  const injection = [
+    INJECT_START,
+    `<meta name="description" content="${escapeAttr(metaDescription)}" />`,
+    `<meta name="robots" content="index, follow" />`,
+    `<link rel="canonical" href="${escapeAttr(origin + "/")}" />`,
+    ...hreflangTags,
+    ...ogTags,
+    ...twitterTags,
+    `<script type="application/ld+json" id="sitebuilder-schema-org">${jsonStr}</script>`,
+    INJECT_END,
+  ].join("\n    ");
+
+  let html = fs.readFileSync(indexHtmlPath, "utf-8");
+
+  if (html.includes(INJECT_START) && html.includes(INJECT_END)) {
+    html = html.replace(
+      new RegExp(
+        `${escapeRegex(INJECT_START)}[\\s\\S]*?${escapeRegex(INJECT_END)}`,
+        "m"
+      ),
+      injection
+    );
+  } else {
+    html = html.replace(/<\/head>/i, `    ${injection}\n  </head>`);
+  }
+
+  // <title> из бренда + главная
+  if (/<title>[^<]*<\/title>/i.test(html)) {
+    html = html.replace(
+      /<title>[^<]*<\/title>/i,
+      `<title>${escapeXmlText(home?.name ? `${home.name} | ${brand}` : brand)}</title>`
+    );
+  }
+
+  fs.writeFileSync(indexHtmlPath, html, "utf-8");
+  console.log(`[build] Обновлёны meta + JSON-LD в index.html`);
+
+  // Emit robots.txt + sitemap.xml so search engines can crawl the site
+  // without an extra build step. Both files are placed in `public/` so
+  // Vite copies them as-is into the production bundle.
+  try {
+    writeSeoArtifacts({
+      projectPath,
+      origin,
+      pages:
+        pageSummaries.length > 0
+          ? pageSummaries
+          : [{ path: "/", name: brand, description: metaDescription }],
+      locales: projectLocales,
+      defaultLocale,
+      multiLocale,
+    });
+    console.log(`[build] Сгенерированы robots.txt и sitemap.xml`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[build] Не удалось сгенерировать SEO-артефакты: ${msg}`);
+  }
+}
+
+function truncateMeta(s: string, max = 160): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  return t.slice(0, max - 1).trimEnd() + "…";
+}
+
+function escapeAttr(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
+
+function escapeXmlText(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

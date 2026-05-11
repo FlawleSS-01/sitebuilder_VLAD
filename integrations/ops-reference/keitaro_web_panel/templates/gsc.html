@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>GSC Conveyor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{--bg0:#0b0d12;--bg1:#0f131b;--text:#e7edf7;--muted:#98a6bf;--shadow:0 18px 50px rgba(0,0,0,.55);--radius:16px}
+    *{box-sizing:border-box}
+    body{
+      margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text);
+      background:radial-gradient(1200px 600px at 15% 10%, rgba(42,109,244,.20), transparent 55%),
+               radial-gradient(900px 500px at 85% 10%, rgba(43,212,255,.12), transparent 55%),
+               linear-gradient(180deg, var(--bg0), var(--bg1));
+      min-height:100vh;padding:22px
+    }
+    .wrap{max-width:1200px;margin:0 auto}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .nav{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .nav a{color:#bcd3ff;text-decoration:none}
+    .nav a:hover{text-decoration:underline}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));border:1px solid rgba(120,140,190,.20);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+    .muted{color:var(--muted);font-size:13px;line-height:1.45}
+    textarea{
+      width:100%;min-height:160px;resize:vertical;border-radius:14px;border:1px solid rgba(120,140,190,.25);
+      background:rgba(8,10,15,.55);color:var(--text);padding:14px;font-size:14px;line-height:1.35;outline:none
+    }
+    textarea:focus{border-color:rgba(42,109,244,.85);box-shadow:0 0 0 4px rgba(42,109,244,.18)}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+    .btn{border:none;cursor:pointer;border-radius:12px;padding:10px 12px;font-weight:900;background:linear-gradient(180deg,#2a6df4,#2056cd);color:#fff}
+    .btn2{border:1px solid rgba(120,140,190,.25);background:rgba(255,255,255,.03);color:#e7edf7}
+    input,select{border-radius:12px;border:1px solid rgba(120,140,190,.25);background:rgba(8,10,15,.55);color:#e7edf7;padding:10px 12px}
+    label{font-size:13px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div style="font-weight:900;font-size:20px">GSC Conveyor</div>
+        <div class="muted">Берём URL из Parser → строим ссылки URL Inspection → ты быстро жмёшь “Запросить индексирование”</div>
+      </div>
+      <div class="nav">
+        <a href="/">Generator</a>
+        <a href="/parser">Parser</a>
+        <a href="/gsc"><b>GSC</b></a>
+        <a href="/logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <form method="post" action="/gsc/run">
+        <div class="muted" style="margin-bottom:10px">
+          Режим по умолчанию: <b>Use parser result</b> (т.е. сначала запускаешь Parser, потом тут генерируешь ссылки).
+        </div>
+
+        <label>Domains (опционально — чтобы отфильтровать URL только для этих доменов):</label>
+        <textarea name="domains" placeholder="good111-bd.com&#10;kk33e.com"></textarea>
+
+        <div class="row">
+          <label>Mode:</label>
+          <select name="mode">
+            <option value="parser" selected>Use parser result</option>
+            <option value="sitemap" disabled>Auto parse sitemap (later)</option>
+          </select>
+
+          <label>Limit per site:</label>
+          <input name="limit" type="number" min="1" max="50" value="20" style="width:90px">
+
+          <button class="btn" type="submit">Generate inspection links</button>
+        </div>
+        <label style="display:flex;gap:10px;align-items:center;margin:10px 0;">
+          <input type="checkbox" name="do_add" checked />
+          <span>Добавлять сайт в GSC (sites.add) и отправлять sitemap (/sitemap.xml)</span>
+        </label>
+        <div class="muted" style="margin-top:10px">
+          Советы: в браузере включи разрешение всплывающих окон для этого сайта, чтобы “Open first N” открывал вкладки.
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

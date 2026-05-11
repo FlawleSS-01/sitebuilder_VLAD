@@ -1,0 +1,75 @@
+/* Theme: grey-red — "Onyx & Ruby". Charcoal stage with vivid red. */
+:root {
+  --sb-style-id: "cyber";
+  --sb-bg: #121212;
+  --sb-bg-2: #2b2b2b;
+  --sb-fg: #f5f5f5;
+  --sb-fg-soft: rgba(245, 245, 245, 0.78);
+  --sb-accent: #ff3b3f;
+  --sb-accent-2: #ff8a3d;
+  --sb-accent-3: #ffd166;
+  --sb-card: rgba(255, 255, 255, 0.05);
+  --sb-card-border: rgba(255, 59, 63, 0.22);
+  --sb-header-bg: rgba(18, 18, 18, 0.78);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(18, 18, 18, 0.95) 0%,
+    rgba(43, 43, 43, 0.6) 45%,
+    rgba(255, 59, 63, 0.2) 100%
+  );
+  --sb-page-pattern: radial-gradient(
+      1200px 600px at 100% -10%,
+      rgba(255, 59, 63, 0.28),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 30%,
+      rgba(255, 138, 61, 0.25),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 400px at 50% 110%,
+      rgba(255, 209, 102, 0.18),
+      transparent 60%
+    );
+
+  --bg: var(--sb-bg);
+  --text: var(--sb-fg);
+  --accent: var(--sb-accent);
+  --main-color: #2b2b2b;
+  --main-section-background: #2b2b2b;
+  --bg-color: #121212;
+  --main-border-radius: 4px;
+  --text-color: #f5f5f5;
+  --hero-color: #f5f5f5;
+  --footer-text: #f5f5f5;
+  --title-color: #f5f5f5;
+  --title-color-hover: #ff3b3f;
+  --card-background: #ff3b3f;
+  --glossary-background: #ff3b3f;
+  --glossary-border-color: #ff3b3f;
+  --icon-background: #ff3b3f;
+  --icon-background-hover: #ff8a3d;
+  --card-color: #121212;
+  --footer-special-background: rgba(43, 43, 43, 0.6);
+  --mainBtn-background: #ff3b3f;
+  --mainBtn-border: none;
+  --mainBtn-color: #121212;
+  --mainBtnSpecial-background: #ff8a3d;
+  --mainBtnSpecial-border: #ff3b3f;
+  --pulse-color-first: #ff3b3f;
+  --pulse-color-second: #ff8a3d;
+  --pulse-box-shadow: 255, 59, 63;
+  --faq-color: #f5f5f5;
+  --faq-border: 1px solid var(--faq-color-active);
+  --faq-color-active: #ff3b3f;
+}
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+a {
+  color: var(--sb-accent);
+}

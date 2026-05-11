@@ -1,0 +1,35 @@
+{
+  "keitaro_admin_url": "https://sitenew2023.com",
+  "templates": {
+    "BD": {
+      "template_campaign_id": 32030,
+      "group_id": null,
+      "geo_label": "БАНГЛАДЕШ"
+    },
+    "UK": {
+      "template_campaign_id": 38108,
+      "group_id": null,
+      "geo_label": "UK"
+    },
+    "MULTI": {
+      "template_campaign_id": 38107,
+      "group_id": null,
+      "geo_label": "МУЛЬТИГЕО"
+    },
+    "PK": {
+      "template_campaign_id": 33636,
+      "group_id": null,
+      "geo_label": "ПАКИСТАН"
+    },
+    "PH": {
+      "template_campaign_id": 30327,
+      "group_id": null,
+      "geo_label": "ФИЛИППИНЫ"
+    },
+    "BR": {
+      "template_campaign_id": 29651,
+      "group_id": null,
+      "geo_label": "БРАЗИЛИЯ"
+    }
+  }
+}

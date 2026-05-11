@@ -1,0 +1,75 @@
+/* Theme: default — "Royal Gold". Dark navy stage with gold + magenta neon. */
+:root {
+  --sb-style-id: "spotlight";
+  --sb-bg: #0b0f24;
+  --sb-bg-2: #1a1244;
+  --sb-fg: #f7f3ff;
+  --sb-fg-soft: rgba(247, 243, 255, 0.78);
+  --sb-accent: #ffd166;
+  --sb-accent-2: #ef476f;
+  --sb-accent-3: #06d6a0;
+  --sb-card: rgba(255, 255, 255, 0.04);
+  --sb-card-border: rgba(255, 255, 255, 0.1);
+  --sb-header-bg: rgba(11, 14, 31, 0.72);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(8, 10, 24, 0.92) 0%,
+    rgba(8, 10, 24, 0.5) 45%,
+    rgba(8, 10, 24, 0.2) 100%
+  );
+  --sb-page-pattern: radial-gradient(
+      1200px 600px at 110% -10%,
+      rgba(255, 209, 102, 0.18),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 10%,
+      rgba(239, 71, 111, 0.18),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 400px at 50% 110%,
+      rgba(6, 214, 160, 0.16),
+      transparent 60%
+    );
+
+  --bg: var(--sb-bg);
+  --text: var(--sb-fg);
+  --accent: var(--sb-accent);
+  --main-color: #10383a;
+  --main-section-background: #1a1244;
+  --bg-color: #0b0f24;
+  --main-border-radius: 4px;
+  --text-color: #ffffff;
+  --hero-color: #ffffff;
+  --footer-text: #ffffff;
+  --title-color: #ffffff;
+  --title-color-hover: #daa112;
+  --card-background: #daa112;
+  --glossary-background: #daa112;
+  --glossary-border-color: #daa112;
+  --icon-background: #daa112;
+  --icon-background-hover: #daa112;
+  --card-color: #000000;
+  --footer-special-background: rgba(23, 54, 55, 0.6);
+  --mainBtn-background: #daa112;
+  --mainBtn-border: none;
+  --mainBtn-color: #000000;
+  --mainBtnSpecial-background: #daa112;
+  --mainBtnSpecial-border: #daa112;
+  --pulse-color-first: #daa112;
+  --pulse-color-second: #daa112;
+  --pulse-box-shadow: 218, 161, 18;
+  --faq-color: #ffffff;
+  --faq-border: 1px solid var(--faq-color-active);
+  --faq-color-active: #daa112;
+}
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+a {
+  color: var(--sb-accent);
+}

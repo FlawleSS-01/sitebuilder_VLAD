@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Parser</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:#0b0d12;color:#e7edf7;padding:22px}
+    .wrap{max-width:1100px;margin:0 auto}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+    .nav{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    a{color:#bcd3ff;text-decoration:none}
+    a:hover{text-decoration:underline}
+    .card{background:#121826;border:1px solid rgba(120,140,190,.2);border-radius:16px;padding:16px}
+    textarea{width:100%;min-height:320px;border-radius:14px;border:1px solid rgba(120,140,190,.25);background:rgba(8,10,15,.55);color:#e7edf7;padding:14px;font-size:14px}
+    .btn{margin-top:12px;border:none;cursor:pointer;border-radius:12px;padding:12px 14px;font-weight:800;background:linear-gradient(180deg,#2a6df4,#2056cd);color:#fff}
+    .muted{color:#98a6bf;font-size:13px;margin-top:10px;line-height:1.45}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div style="font-weight:900;font-size:20px">URL Parser (Sitemap)</div>
+        <div class="muted">Вставь домены/URL/сайтмапы → получи список URL</div>
+      </div>
+      <div class="topnav">
+        <a class="navbtn" href="/">Generator</a>
+        <a class="navbtn" href="/parser">Parser</a>
+        <a class="navbtn" href="/logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <form method="post" action="/parser/run">
+        <textarea name="targets" placeholder="bb444.bet&#10;https://site.com/sitemap.xml&#10;https://site.com/sitemap.xml.gz"></textarea>
+        <button class="btn" type="submit">Parse</button>
+      </form>
+
+      <div class="muted">
+        По умолчанию для домена берётся <b>/sitemap.xml</b>. Поддерживает sitemapindex и <b>.xml.gz</b>.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

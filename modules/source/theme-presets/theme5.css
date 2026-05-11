@@ -1,0 +1,75 @@
+/* Theme 5 — "Sapphire Royale": deep blue stage with platinum silver and gold. */
+:root {
+  --sb-style-id: "deco";
+  --sb-bg: #050d24;
+  --sb-bg-2: #0a1a4a;
+  --sb-fg: #f0f6ff;
+  --sb-fg-soft: rgba(240, 246, 255, 0.78);
+  --sb-accent: #f5d76e;
+  --sb-accent-2: #4dabf7;
+  --sb-accent-3: #c9d6f5;
+  --sb-card: rgba(255, 255, 255, 0.05);
+  --sb-card-border: rgba(245, 215, 110, 0.22);
+  --sb-header-bg: rgba(5, 13, 36, 0.78);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(5, 13, 36, 0.94) 0%,
+    rgba(10, 26, 74, 0.55) 45%,
+    rgba(77, 171, 247, 0.2) 100%
+  );
+  --sb-page-pattern: radial-gradient(
+      1200px 600px at 100% -10%,
+      rgba(245, 215, 110, 0.22),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 30%,
+      rgba(77, 171, 247, 0.25),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 400px at 50% 110%,
+      rgba(201, 214, 245, 0.16),
+      transparent 60%
+    );
+
+  --bg: var(--sb-bg);
+  --text: var(--sb-fg);
+  --accent: var(--sb-accent);
+  --main-color: #0a1a4a;
+  --main-section-background: #0a1a4a;
+  --bg-color: #050d24;
+  --main-border-radius: 4px;
+  --text-color: #f0f6ff;
+  --hero-color: #f0f6ff;
+  --footer-text: #f0f6ff;
+  --title-color: #f0f6ff;
+  --title-color-hover: #f5d76e;
+  --card-background: #f5d76e;
+  --glossary-background: #f5d76e;
+  --glossary-border-color: #f5d76e;
+  --icon-background: #f5d76e;
+  --icon-background-hover: #4dabf7;
+  --card-color: #050d24;
+  --footer-special-background: rgba(10, 26, 74, 0.6);
+  --mainBtn-background: #f5d76e;
+  --mainBtn-border: none;
+  --mainBtn-color: #050d24;
+  --mainBtnSpecial-background: #4dabf7;
+  --mainBtnSpecial-border: #f5d76e;
+  --pulse-color-first: #f5d76e;
+  --pulse-color-second: #4dabf7;
+  --pulse-box-shadow: 245, 215, 110;
+  --faq-color: #f0f6ff;
+  --faq-border: 1px solid var(--faq-color-active);
+  --faq-color-active: #f5d76e;
+}
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+a {
+  color: var(--sb-accent);
+}

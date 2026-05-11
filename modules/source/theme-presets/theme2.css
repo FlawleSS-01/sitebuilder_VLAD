@@ -1,0 +1,75 @@
+/* Theme 2 — "Magenta Dreams": violet stage with hot pink and aqua highlights. */
+:root {
+  --sb-style-id: "glass";
+  --sb-bg: #14001a;
+  --sb-bg-2: #3a0f5a;
+  --sb-fg: #fdf2ff;
+  --sb-fg-soft: rgba(253, 242, 255, 0.78);
+  --sb-accent: #ff4dd2;
+  --sb-accent-2: #b14dff;
+  --sb-accent-3: #5ee2ff;
+  --sb-card: rgba(255, 255, 255, 0.05);
+  --sb-card-border: rgba(255, 77, 210, 0.25);
+  --sb-header-bg: rgba(20, 0, 26, 0.78);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(20, 0, 26, 0.93) 0%,
+    rgba(58, 15, 90, 0.55) 45%,
+    rgba(177, 77, 255, 0.25) 100%
+  );
+  --sb-page-pattern: radial-gradient(
+      1200px 600px at 100% -10%,
+      rgba(255, 77, 210, 0.3),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 30%,
+      rgba(177, 77, 255, 0.25),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 400px at 50% 110%,
+      rgba(94, 226, 255, 0.18),
+      transparent 60%
+    );
+
+  --bg: var(--sb-bg);
+  --text: var(--sb-fg);
+  --accent: var(--sb-accent);
+  --main-color: #3a0f5a;
+  --main-section-background: #3a0f5a;
+  --bg-color: #14001a;
+  --main-border-radius: 4px;
+  --text-color: #fdf2ff;
+  --hero-color: #fdf2ff;
+  --footer-text: #fdf2ff;
+  --title-color: #fdf2ff;
+  --title-color-hover: #ff4dd2;
+  --card-background: #ff4dd2;
+  --glossary-background: #ff4dd2;
+  --glossary-border-color: #ff4dd2;
+  --icon-background: #ff4dd2;
+  --icon-background-hover: #b14dff;
+  --card-color: #14001a;
+  --footer-special-background: rgba(58, 15, 90, 0.6);
+  --mainBtn-background: #ff4dd2;
+  --mainBtn-border: none;
+  --mainBtn-color: #14001a;
+  --mainBtnSpecial-background: #b14dff;
+  --mainBtnSpecial-border: #ff4dd2;
+  --pulse-color-first: #ff4dd2;
+  --pulse-color-second: #b14dff;
+  --pulse-box-shadow: 255, 77, 210;
+  --faq-color: #fdf2ff;
+  --faq-border: 1px solid var(--faq-color-active);
+  --faq-color-active: #ff4dd2;
+}
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+a {
+  color: var(--sb-accent);
+}

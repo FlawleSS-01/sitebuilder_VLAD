@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>GSC Conveyor Results</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:#0b0d12;color:#e7edf7;padding:22px}
+    .wrap{max-width:1300px;margin:0 auto}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .nav{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    a{color:#bcd3ff;text-decoration:none}
+    a:hover{text-decoration:underline}
+    .card{background:#121826;border:1px solid rgba(120,140,190,.2);border-radius:18px;padding:16px}
+    .muted{color:#98a6bf;font-size:13px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+    .btn{border:none;cursor:pointer;border-radius:14px;padding:11px 14px;font-weight:900;background:linear-gradient(180deg,#2a6df4,#2056cd);color:#fff}
+    .btn2{border:1px solid rgba(120,140,190,.25);background:rgba(255,255,255,.03);color:#e7edf7}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .pill{display:inline-flex;gap:8px;align-items:center;padding:7px 11px;border:1px solid rgba(120,140,190,.25);border-radius:999px;background:rgba(255,255,255,.03);font-size:12px}
+    .ok{color:#7CFFB2}
+    .bad{color:#ff9aa7}
+    .status{margin-left:10px;font-size:12px;color:#98a6bf}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border:1px solid rgba(120,140,190,.18);padding:10px;font-size:13px;vertical-align:top}
+    th{background:rgba(0,0,0,.20);color:#cfe0ff;text-align:left}
+    input[type=number]{width:90px;border-radius:12px;border:1px solid rgba(120,140,190,.25);background:rgba(8,10,15,.55);color:#e7edf7;padding:10px 12px;font-weight:800}
+    .hint{color:#98a6bf;font-size:12px;margin-left:6px}
+    .block{margin-top:16px}
+    .err{margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,77,77,.25);background:rgba(255,77,77,.10);color:#ffd0d0;font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div style="font-weight:900;font-size:22px">GSC Conveyor Results</div>
+        <div class="muted">Нажимай “Open inspection” → в GSC жми “Запросить индексирование”. Если хочешь через AdsPower — жми “Open in AdsPower”.</div>
+      </div>
+      <div class="nav">
+        <a href="/">Generator</a>
+        <a href="/parser">Parser</a>
+        <a href="/gsc">GSC</a>
+        <a href="/logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="card">
+      {% if error %}
+        <div class="err"><b>Ошибка:</b> {{ error }}</div>
+      {% endif %}
+
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <div class="row" style="align-items:center;margin:0">
+          <a class="btn btn2" href="/gsc">← Back</a>
+          <div class="pill">Открывать по <input id="openN" type="number" min="1" max="100" value="20" /> <span class="hint">вкладок</span></div>
+        </div>
+        <div class="muted">Если вкладки не открываются — разреши popups для 127.0.0.1:5000</div>
+      </div>
+
+      {% for item in items %}
+        <div class="block">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:900;font-size:18px">{{ item.domain }}</div>
+              <div class="muted" style="margin-top:6px">
+                <span class="pill">Property: <b>{{ item.property_url }}</b></span>
+                <span class="pill">Acc: <b>{{ item.account_id }}</b>{% if item.account_email %} · {{ item.account_email }}{% endif %}</span>
+                <span class="pill">Perm: <b>{{ item.perm }}</b></span>
+                {% if item.adspower_user_id %}
+                  <span class="pill">AdsPower: <b>{{ item.adspower_user_id }}</b></span>
+                {% else %}
+                  <span class="pill">AdsPower: <b class="bad">нет профиля</b></span>
+                {% endif %}
+                <span class="pill">Add: {% if item.added_ok %}<b class="ok">OK</b>{% else %}<b class="bad">ERR</b>{% endif %}</span>
+                <span class="pill">Sitemap: {% if item.sitemap_ok %}<b class="ok">OK</b>{% else %}<b class="bad">WARN/ERR</b>{% endif %}</span>
+              </div>
+              {% if item.error_add %}
+                <div class="err">Add error: {{ item.error_add }}</div>
+              {% endif %}
+              {% if item.error_sitemap %}
+                <div class="err">Sitemap error: {{ item.error_sitemap }}</div>
+              {% endif %}
+            </div>
+
+            <div class="row" style="margin:0">
+              {% if item.adspower_user_id %}
+                <button class="btn" type="button" onclick="openFirstN('{{ item.adspower_user_id }}', {{ item.rows|tojson }}, this)">Open first N in AdsPower</button>
+              {% endif %}
+              <button class="btn btn2" type="button" onclick="copyInspect({{ item.rows|tojson }})">Copy inspect links</button>
+              <button class="btn btn2" type="button" onclick="copyUrls({{ item.rows|tojson }})">Copy URLs</button>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width:55%">URL</th>
+                <th style="width:20%">Inspect</th>
+                <th style="width:25%">Open via AdsPower</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in item.rows %}
+              <tr>
+                <td><a href="{{ r.url }}" target="_blank">{{ r.url }}</a></td>
+                <td><a href="{{ r.inspect }}" target="_blank">Open inspection</a></td>
+                <td>
+                  {% if item.adspower_user_id %}
+                    <button class="btn btn2" type="button" onclick="openAds('{{ item.adspower_user_id }}','{{ r.inspect }}', this)">Open in AdsPower</button>
+                    <span class="status"></span>
+                  {% else %}
+                    <span class="muted">нет AdsPower профиля</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+<script>
+async function openAds(userId, url, btn){
+  const st = btn.parentElement.querySelector('.status');
+  st.textContent = 'starting...';
+  btn.disabled = true;
+  try{
+    const resp = await fetch('/adspower/open', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({user_id: userId, url: url})
+    });
+    const data = await resp.json();
+    st.textContent = data.ok ? 'opened' : ('error: ' + (data.error || 'unknown'));
+  }catch(e){
+    st.textContent = 'error: ' + e.message;
+  }finally{
+    btn.disabled = false;
+    setTimeout(()=>{ st.textContent=''; }, 5000);
+  }
+}
+
+function getN(){
+  const el = document.getElementById('openN');
+  const n = parseInt(el?.value || '20', 10);
+  if(!n || n < 1) return 20;
+  return Math.min(n, 100);
+}
+
+async function openFirstN(userId, rows, btn){
+  const n = getN();
+  const urls = (rows||[]).slice(0,n).map(r=>r.inspect);
+  btn.disabled = true;
+  btn.textContent = 'opening...';
+  try{
+    const resp = await fetch('/adspower/open_many', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({user_id: userId, urls: urls})
+    });
+    const data = await resp.json();
+    if(!data.ok){
+      alert('AdsPower error: ' + (data.error || 'unknown'));
+    }
+  }catch(e){
+    alert('AdsPower error: ' + e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Open first N in AdsPower';
+  }
+}
+
+function copyInspect(rows){
+  const txt = (rows||[]).map(r=>r.inspect).join('\n');
+  navigator.clipboard?.writeText(txt);
+}
+function copyUrls(rows){
+  const txt = (rows||[]).map(r=>r.url).join('\n');
+  navigator.clipboard?.writeText(txt);
+}
+</script>
+</body>
+</html>

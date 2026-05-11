@@ -1,0 +1,30 @@
+{
+  "keitaro_admin_url": "https://sitenew2023.com/admin/",
+  "api_key": "40ef77ce6f74cf7f1daf385e8ff230bd",
+  "templates": {
+    "BD": { "template_campaign_id": 32030, "group_id": null, "geo_label": "БАНГЛАДЕШ" },
+    "UK": { "template_campaign_id": 38108, "group_id": null, "geo_label": "UK" },
+    "MULTI": { "template_campaign_id": 38106, "group_id": null, "geo_label": "МУЛЬТИГЕО" },
+
+    "PK": { "template_campaign_id": 33636, "group_id": null, "geo_label": "ПАКИСТАН" },
+    "PH": { "template_campaign_id": 30327, "group_id": null, "geo_label": "ФИЛИППИНЫ" },
+    "BR": { "template_campaign_id": 29651, "group_id": null, "geo_label": "БРАЗИЛИЯ" },
+
+    "FR": { "template_campaign_id": 33826, "group_id": null, "geo_label": "ФРАНЦИЯ" },
+    "PT": { "template_campaign_id": 22727, "group_id": null, "geo_label": "ПОРТУГАЛИЯ" },
+    "ES": { "template_campaign_id": 32599, "group_id": null, "geo_label": "ИСПАНИЯ" },
+
+    "PRILKI": { "template_campaign_id": 33818, "group_id": null, "geo_label": "ПРИЛКИ МУЛЬТИГЕО" },
+    "VN": { "template_campaign_id": 25847, "group_id": null, "geo_label": "ВЬЕТНАМ" },
+    "KEN": { "template_campaign_id": 39850, "group_id": null, "geo_label": "КЕНИЯ" },
+  
+    "ARG": { "template_campaign_id": 39851, "group_id": null, "geo_label": "АРГЕНТИНА" },
+    "NIG": { "template_campaign_id": 32595, "group_id": null, "geo_label": "НИГЕРИЯ" },
+  "INDON": { "template_campaign_id": 39343, "group_id": null, "geo_label": "ИНДОНЕЗИЯ" },
+  
+  
+  "MALA": { "template_campaign_id": 39854, "group_id": null, "geo_label": "МАЛАЙЗИЯ" },
+  "KAM": { "template_campaign_id": 39852, "group_id": null, "geo_label": "КАМБОДЖА" },
+    "IN": { "template_campaign_id": 39333, "group_id": null, "geo_label": "ИНДИЯ" }
+  }
+}

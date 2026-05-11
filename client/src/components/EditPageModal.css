@@ -1,0 +1,267 @@
+.edit-page-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.edit-page-modal-content {
+  background: white;
+  border-radius: 8px;
+  max-width: 1000px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.edit-page-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.edit-page-modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #fff;
+}
+
+.edit-page-modal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.edit-page-modal-close:hover {
+  background-color: #f0f0f0;
+}
+
+.edit-page-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.edit-page-modal-loading,
+.edit-page-modal-error {
+  padding: 20px;
+  text-align: center;
+}
+
+.edit-page-modal-error {
+  color: #d32f2f;
+  background: #ffebee;
+  border-radius: 4px;
+  margin: 20px;
+}
+
+.edit-page-section {
+  margin-bottom: 30px;
+}
+
+.edit-page-section h3 {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  color: #fff;
+  border-bottom: 2px solid #007bff;
+  padding-bottom: 8px;
+}
+
+.edit-page-field {
+  margin-bottom: 15px;
+}
+
+.edit-page-field label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #fff;
+  font-size: 13px;
+}
+
+.edit-page-field input,
+.edit-page-field textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.edit-page-field input:focus,
+.edit-page-field textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+.edit-page-field textarea {
+  min-height: 80px;
+}
+
+.edit-page-disabled {
+  background-color: #f5f5f5;
+  color: #999;
+  cursor: not-allowed;
+}
+
+.edit-page-field small {
+  display: block;
+  margin-top: 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+.edit-page-block {
+  background: #23272f;
+  border: 1px solid #353a42;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.edit-page-block h4 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  color: #007bff;
+  font-weight: 600;
+}
+
+.edit-page-element {
+  background: #23272f;
+  border: 1px solid #fff;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+
+.edit-page-element-type {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.edit-page-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.edit-page-cancel-btn,
+.edit-page-save-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.edit-page-cancel-btn {
+  background-color: #6c757d;
+  color: white;
+}
+
+.edit-page-cancel-btn:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+.edit-page-save-btn {
+  background-color: #007bff;
+  color: white;
+}
+
+.edit-page-save-btn:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.edit-page-cancel-btn:disabled,
+.edit-page-save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.edit-page-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.edit-page-list-item {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.edit-page-list-item-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.edit-page-list-item-title {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.edit-page-list-item-title:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
+.edit-page-list-item-description {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 50px;
+}
+
+.edit-page-list-item-description:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+

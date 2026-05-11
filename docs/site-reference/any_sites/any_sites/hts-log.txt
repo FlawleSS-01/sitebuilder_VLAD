@@ -1,0 +1,85 @@
+HTTrack3.49-2+htsswf+htsjava launched on Tue, 31 Mar 2026 00:59:33 at https://zg66.org/ https://477bdt.com/ https://4777det.com/ https://tbaji.org/ https://kg222.net/ https://ct99pk.com/ https://399-bet.net/app https://kbaje.com/ https://tap555.net/ https://tap-555.com/ https://66zk.net/ https://677bed.com/ https://5777-bed.com/ https://89-bd.org/ https://ok-club.net/ https://ramadanbd.com/ https://418bet8.net/ https://cv33.org/en https://mv-777.com https://777taka.net/ https://amazon-casino.net/ https://ibet.biz/ https://loco777.org/ https://aviatorjlbd.com/ https://bdt234bet.com/ https://tk-222.com/ https://bdtk3.net/ https://ek-222.com/ https://hhbd.bet/ +*.png +*.gif +*.jpg +*.jpeg +*.css +*.js -ad.doubleclick.net/* -mime:application/foobar
+(winhttrack -qwC2%Ps2u1%s%uN0%I0p3DaK0H0%kf2A25000%f#f -F "Mozilla/4.5 (compatible; HTTrack 3.0x; Windows 98)" -%F "<!-- Mirrored from %s%s by HTTrack Website Copier/3.x [XR&CO'2014], %s -->" -%l "en, *" https://zg66.org/ https://477bdt.com/ https://4777det.com/ https://tbaji.org/ https://kg222.net/ https://ct99pk.com/ https://399-bet.net/app https://kbaje.com/ https://tap555.net/ https://tap-555.com/ https://66zk.net/ https://677bed.com/ https://5777-bed.com/ https://89-bd.org/ https://ok-club.net/ https://ramadanbd.com/ https://418bet8.net/ https://cv33.org/en https://mv-777.com https://777taka.net/ https://amazon-casino.net/ https://ibet.biz/ https://loco777.org/ https://aviatorjlbd.com/ https://bdt234bet.com/ https://tk-222.com/ https://bdtk3.net/ https://ek-222.com/ https://hhbd.bet/ -O1 "D:\CURSOR-PROJECTS\MY-SITE-GENERATOR\site-builder\docs\site-reference\any_sites\any_sites" +*.png +*.gif +*.jpg +*.jpeg +*.css +*.js -ad.doubleclick.net/* -mime:application/foobar )
+
+Information, Warnings and Errors reported for this mirror:
+note:	the hts-log.txt file, and hts-cache folder, may contain sensitive information,
+	such as username/password authentication for websites mirrored in this project
+	do not share these files/folders if you want these information to remain private
+
+01:00:05	Warning: 	File not parsed, looks like binary: https://tap-555.com/robots.txt
+01:00:31	Warning: 	Moved Permanently for https://ramadanbd.com/
+01:00:31	Warning: 	File has moved from https://ramadanbd.com/ to http://ramadanbd.com/en-BD/
+01:00:32	Warning: 	Moved Permanently for https://418bet8.net/
+01:00:32	Warning: 	File has moved from https://418bet8.net/ to http://418bet8.net/en-BR/
+01:00:49	Warning: 	Moved Permanently for https://777taka.net/
+01:00:49	Warning: 	File has moved from https://777taka.net/ to http://777taka.net/en-BD/
+01:02:40	Warning: 	Link https://677bed.com/cdn-cgi/content?id=v3SpZ2ANcw_WixeBC7yHB65PxWoRZGPo.6G8nlOeFxY-1774907984.3765056-1.0.1.1-4D1yXzrzOxr9Apz5CiUhJ5qk97_Y9Qt34umWcAxW2H8 not scanned (follow robots meta tag)
+01:03:01	Warning: 	Moved Permanently for ramadanbd.com/robots.txt
+01:03:01	Warning: 	Redirected link is identical because of 'URL Hack' option: ramadanbd.com/robots.txt and https://ramadanbd.com/robots.txt
+01:03:01	Warning: 	Warning moved treated for ramadanbd.com/robots.txt (real one is https://ramadanbd.com/robots.txt)
+01:03:01	Warning: 	Moved Permanently for ramadanbd.com/en-BD/
+01:03:01	Warning: 	Redirected link is identical because of 'URL Hack' option: ramadanbd.com/en-BD/ and https://ramadanbd.com/en-BD/
+01:03:01	Warning: 	File has moved from ramadanbd.com/en-BD/ to https://ramadanbd.com/en-BD/
+01:03:02	Warning: 	Moved Permanently for 418bet8.net/robots.txt
+01:03:02	Warning: 	Redirected link is identical because of 'URL Hack' option: 418bet8.net/robots.txt and https://418bet8.net/robots.txt
+01:03:02	Warning: 	Warning moved treated for 418bet8.net/robots.txt (real one is https://418bet8.net/robots.txt)
+01:03:02	Warning: 	Moved Permanently for 418bet8.net/en-BR/
+01:03:02	Warning: 	Redirected link is identical because of 'URL Hack' option: 418bet8.net/en-BR/ and https://418bet8.net/en-BR/
+01:03:02	Warning: 	File has moved from 418bet8.net/en-BR/ to https://418bet8.net/en-BR/
+01:03:03	Warning: 	Link https://cv33.org/cdn-cgi/content?id=3v9ufeJeXpuxAqQ8D9oReRUjqT3Cb6FC2tAtKcEGGr8-1774907981.0974526-1.0.1.1-NQYWhKPfqeYdAgSeUgnsS8pV8uhKrIMQcGLReOpR2d8 not scanned (follow robots meta tag)
+01:03:03	Warning: 	Link https://mv-777.com/cdn-cgi/content?id=WBhvvkynCOl3B.hkdLwhjluDIMGNRKuiAhjfC4L2PtU-1774907986.6947517-1.0.1.1-QhqlRFWbIUvBO.4rQmInEGDrLEyNae.koQdSjPpKrGM not scanned (follow robots meta tag)
+01:03:04	Warning: 	Moved Permanently for 777taka.net/robots.txt
+01:03:04	Warning: 	Redirected link is identical because of 'URL Hack' option: 777taka.net/robots.txt and https://777taka.net/robots.txt
+01:03:04	Warning: 	Warning moved treated for 777taka.net/robots.txt (real one is https://777taka.net/robots.txt)
+01:03:04	Warning: 	Moved Permanently for 777taka.net/en-BD/
+01:03:04	Warning: 	Redirected link is identical because of 'URL Hack' option: 777taka.net/en-BD/ and https://777taka.net/en-BD/
+01:03:04	Warning: 	File has moved from 777taka.net/en-BD/ to https://777taka.net/en-BD/
+01:03:04	Warning: 	Link https://amazon-casino.net/cdn-cgi/content?id=3_oGe2W1_CAWHMkUuF9FOuazge0svV5TDESnrjY.0wM-1774907987.3995101-1.0.1.1-FUE8Az5bzT88OFK7K0ENcDzAaBqstdUccVgqE94Q5Ns not scanned (follow robots meta tag)
+01:03:08	Warning: 	Link https://ibet.biz/cdn-cgi/content?id=uvzHfxqi8oheTq67tBR4udv1auFJBnhxrhE_QfO1s3k-1774907987.9912903-1.0.1.1-3kMoyW4EFrazKss_tfEUZYm.FL0YfT5Br3cfnsAsmZs not scanned (follow robots meta tag)
+01:03:11	Warning: 	Link https://loco777.org/cdn-cgi/content?id=nqy4U9G7kEMW6Xy5gRaBi7wZ5s3zIYr8wUfsb3g36jE-1774907988.0538628-1.0.1.1-QbgvS1Tz0IFKqKf4nEO8IYiR5hiY12NcIIJ1t6XfXiQ not scanned (follow robots meta tag)
+01:03:42	Warning: 	Link https://tk-222.com/2MkF6sc.html not scanned (follow robots meta tag)
+01:03:44	Warning: 	Link https://bdtk3.net/cdn-cgi/content?id=BFv9iru4QFd_T0FtMkCgzQUAABxcTKyA_CaiUH7hg2w-1774907990.8563144-1.0.1.1-EJyN8cKIvYbcoUqhjFkq.wqACAirIhginjgREAdhO48 not scanned (follow robots meta tag)
+01:04:01	Warning: 	Link https://ek-222.com/2MkF6sc.html not scanned (follow robots meta tag)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/fonts/fa-brands-400.eot (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/fonts/fa-brands-400.woff2 (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/fonts/fa-brands-400.woff (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/fonts/fa-brands-400.ttf (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/images/fa-brands-400.svg (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/fonts/fa-regular-400.eot (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/fonts/fa-regular-400.woff2 (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/fonts/fa-regular-400.woff (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/fonts/fa-regular-400.ttf (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/images/fa-regular-400.svg (from https://tap555.net/css/all.min.css)
+01:04:04	Error: 	"Not Found" (404) at link https://tap555.net/images/fa-solid-900.svg (from https://tap555.net/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-brands-400.eot (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-brands-400.woff2 (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-brands-400.woff (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-brands-400.ttf (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/images/fa-brands-400.svg (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-regular-400.eot (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-regular-400.woff2 (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-regular-400.woff (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-regular-400.ttf (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/images/fa-regular-400.svg (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/images/fa-solid-900.svg (from https://89-bd.org/css/all.min.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/images/transparent.jpg (from https://89-bd.org/css/jet-popup-frontend.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/images/spinner-32.svg (from https://89-bd.org/css/jet-tabs-frontend.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-brands-400_1.eot (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-brands-400_1.woff2 (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-brands-400_1.woff (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-brands-400_1.ttf (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/images/fa-brands-400_1.svg (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-regular-400_1.eot (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-regular-400_1.woff2 (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-regular-400_1.woff (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/fonts/fa-regular-400_1.ttf (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/images/fa-regular-400_1.svg (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://89-bd.org/images/fa-solid-900_1.svg (from https://89-bd.org/css/all.min_1.css)
+01:04:05	Error: 	"Not Found" (404) at link https://tk-222.com/Trident/ (from sdk.51.la/js-sdk-pro.min.js)
+01:04:05	Error: 	"Not Found" (404) at link https://tk-222.com/Edge/ (from sdk.51.la/js-sdk-pro.min.js)
+01:04:05	Error: 	"Not Found" (404) at link https://tk-222.com/js-sdk-pro.min.js (from sdk.51.la/js-sdk-pro.min.js)
+01:04:05	Error: 	"Not Found" (404) at link https://tk-222.com/js-sdk-event.min.js?u= (from sdk.51.la/js-sdk-pro.min.js)
+01:04:05	Error: 	"Not Found" (404) at link https://tk-222.com/js-sdk-recorder.min.js?v= (from sdk.51.la/js-sdk-pro.min.js)
+
+HTTrack Website Copier/3.49-2 mirror complete in 4 minutes 32 seconds : 722 links scanned, 644 files written (67556457 bytes overall) [54381801 bytes received at 199933 bytes/sec], 28715734 bytes transferred using HTTP compression in 493 files, ratio 52%, 3.5 requests per connection
+(40 errors, 34 warnings, 0 messages)

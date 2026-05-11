@@ -1,0 +1,76 @@
+/* Theme 1 — "Sunset Vegas": deep crimson stage with orange neon and gold. */
+:root {
+  --sb-style-id: "diagonal";
+  --sb-hero-align: right;
+  --sb-bg: #1a0510;
+  --sb-bg-2: #4a1429;
+  --sb-fg: #fff7ed;
+  --sb-fg-soft: rgba(255, 247, 237, 0.78);
+  --sb-accent: #ffb347;
+  --sb-accent-2: #ff5e62;
+  --sb-accent-3: #ffd166;
+  --sb-card: rgba(255, 255, 255, 0.05);
+  --sb-card-border: rgba(255, 179, 71, 0.25);
+  --sb-header-bg: rgba(26, 5, 16, 0.78);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(26, 5, 16, 0.94) 0%,
+    rgba(74, 20, 41, 0.55) 45%,
+    rgba(255, 94, 98, 0.25) 100%
+  );
+  --sb-page-pattern: radial-gradient(
+      1200px 600px at 100% -10%,
+      rgba(255, 179, 71, 0.28),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 30%,
+      rgba(255, 94, 98, 0.24),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 400px at 50% 110%,
+      rgba(255, 209, 102, 0.18),
+      transparent 60%
+    );
+
+  --bg: var(--sb-bg);
+  --text: var(--sb-fg);
+  --accent: var(--sb-accent);
+  --main-color: #4a1429;
+  --main-section-background: #4a1429;
+  --bg-color: #1a0510;
+  --main-border-radius: 4px;
+  --text-color: #fff7ed;
+  --hero-color: #fff7ed;
+  --footer-text: #fff7ed;
+  --title-color: #fff7ed;
+  --title-color-hover: #ffb347;
+  --card-background: #ffb347;
+  --glossary-background: #ffb347;
+  --glossary-border-color: #ffb347;
+  --icon-background: #ffb347;
+  --icon-background-hover: #ff5e62;
+  --card-color: #1a0510;
+  --footer-special-background: rgba(74, 20, 41, 0.6);
+  --mainBtn-background: #ffb347;
+  --mainBtn-border: none;
+  --mainBtn-color: #1a0510;
+  --mainBtnSpecial-background: #ff5e62;
+  --mainBtnSpecial-border: #ffb347;
+  --pulse-color-first: #ffb347;
+  --pulse-color-second: #ff5e62;
+  --pulse-box-shadow: 255, 179, 71;
+  --faq-color: #fff7ed;
+  --faq-border: 1px solid var(--faq-color-active);
+  --faq-color-active: #ffb347;
+}
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+a {
+  color: var(--sb-accent);
+}

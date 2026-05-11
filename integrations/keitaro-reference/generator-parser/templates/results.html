@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Results</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg0:#0b0d12; --bg1:#0f131b;
+      --text:#e7edf7; --muted:#98a6bf;
+      --accent:#2a6df4; --shadow: 0 18px 50px rgba(0,0,0,.55);
+      --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 15% 10%, rgba(42,109,244,.20), transparent 55%),
+        radial-gradient(900px 500px at 85% 10%, rgba(43,212,255,.12), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      min-height:100vh;
+      padding:22px;
+    }
+    .wrap{max-width: 1200px; margin:0 auto;}
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid rgba(120,140,190,.20);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      padding:18px;
+    }
+    .top{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+    h1{ margin:0; font-size:20px; }
+    .muted{ color:var(--muted); font-size:13px; }
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(120,140,190,.25);
+      background: rgba(255,255,255,.03);
+      color:var(--text);
+      text-decoration:none;
+      cursor:pointer;
+      transition: filter .12s ease;
+      font-weight:900;
+      font-size:13px;
+      white-space:nowrap;
+    }
+    .btn:hover{ filter: brightness(1.08); }
+    .btn.primary{
+      background: linear-gradient(180deg, rgba(42,109,244,1), rgba(32,86,205,1));
+      border-color: rgba(42,109,244,.75);
+    }
+    .btn.small{ padding:7px 10px; font-weight:800; font-size:12px; border-radius:10px; }
+
+    textarea{
+      width:100%;
+      height: 170px;
+      resize: vertical;
+      border-radius: 14px;
+      border: 1px solid rgba(120,140,190,.25);
+      background: rgba(8,10,15,.55);
+      color: var(--text);
+      padding: 14px;
+      outline: none;
+      font-size:13px;
+      line-height:1.35;
+      margin-top:12px;
+    }
+    table{ width:100%; border-collapse: collapse; margin-top:12px; overflow:hidden; border-radius: 14px; }
+    th, td{ border: 1px solid rgba(120,140,190,.18); padding: 10px; font-size:13px; vertical-align: top; }
+    th{ background: rgba(0,0,0,.20); color:#cfe0ff; text-align:left; }
+    a.link{ color:#bcd3ff; text-decoration:none; }
+    a.link:hover{ text-decoration:underline; }
+    .error{
+      margin-top:12px; padding:12px; border-radius: 12px;
+      border:1px solid rgba(255,77,77,.25);
+      background: rgba(255,77,77,.10);
+      color:#ffd0d0; font-size:13px; line-height:1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="top">
+        <div>
+          <h1>Results ({{ geo }})</h1>
+          <div class="muted">Формат: ДОМЕН | ССЫЛКА | БРЕНД</div>
+        </div>
+        <div class="row">
+          <a class="btn" href="/">← Back</a>
+          <a class="btn primary" href="/download.csv">Download CSV</a>
+          <button class="btn" id="copyBtn" type="button">Copy list</button>
+          <a class="btn" href="/logout">Logout</a>
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="error"><b>Ошибка:</b><br/>{{ error }}</div>
+      {% endif %}
+
+      {% if results and (not error) %}
+        <textarea id="listBox" readonly>{% for r in results %}ДОМЕН: {{ r.domain }} | ССЫЛКА: {{ r.url }} | БРЕНД: {{ r.brand }}
+{% endfor %}</textarea>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width:22%">Domain</th>
+              <th>URL</th>
+              <th style="width:12%">Brand</th>
+              <th style="width:12%">Campaign</th>
+              <th style="width:10%">GEO</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in results %}
+            <tr>
+              <td>{{ r.domain }}</td>
+              <td><a class="link" href="{{ r.url }}" target="_blank">{{ r.url }}</a></td>
+              <td>{{ r.brand }}</td>
+              <td>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                  <span>{{ r.campaign_id }}</span>
+                  {% if keitaro_ui_base %}
+                    <a class="btn small" href="{{ keitaro_ui_base }}/#!/campaigns/{{ r.campaign_id }}" target="_blank">Open in Keitaro</a>
+                  {% endif %}
+                </div>
+              </td>
+              <td>{{ r.geo }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    const btn = document.getElementById('copyBtn');
+    const box = document.getElementById('listBox');
+
+    if (btn && box){
+      btn.addEventListener('click', async () => {
+        try{
+          await navigator.clipboard.writeText(box.value);
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = 'Copy list', 1100);
+        }catch(e){
+          box.focus();
+          box.select();
+          document.execCommand('copy');
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = 'Copy list', 1100);
+        }
+      });
+    }
+  </script>
+</body>
+</html>

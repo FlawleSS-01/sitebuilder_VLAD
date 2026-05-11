@@ -1,0 +1,75 @@
+/* Theme: blue-violet — "Twilight Velvet". Deep indigo with vivid violet glow. */
+:root {
+  --sb-style-id: "glass";
+  --sb-bg: #07061f;
+  --sb-bg-2: #25148a;
+  --sb-fg: #f5f3ff;
+  --sb-fg-soft: rgba(245, 243, 255, 0.78);
+  --sb-accent: #a259ff;
+  --sb-accent-2: #4dabf7;
+  --sb-accent-3: #ffd166;
+  --sb-card: rgba(255, 255, 255, 0.05);
+  --sb-card-border: rgba(162, 89, 255, 0.22);
+  --sb-header-bg: rgba(7, 6, 31, 0.78);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(7, 6, 31, 0.94) 0%,
+    rgba(37, 20, 138, 0.55) 45%,
+    rgba(162, 89, 255, 0.22) 100%
+  );
+  --sb-page-pattern: radial-gradient(
+      1200px 600px at 100% -10%,
+      rgba(162, 89, 255, 0.28),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at -10% 30%,
+      rgba(77, 171, 247, 0.25),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 400px at 50% 110%,
+      rgba(255, 209, 102, 0.18),
+      transparent 60%
+    );
+
+  --bg: var(--sb-bg);
+  --text: var(--sb-fg);
+  --accent: var(--sb-accent);
+  --main-color: #25148a;
+  --main-section-background: #25148a;
+  --bg-color: #07061f;
+  --main-border-radius: 4px;
+  --text-color: #f5f3ff;
+  --hero-color: #f5f3ff;
+  --footer-text: #f5f3ff;
+  --title-color: #f5f3ff;
+  --title-color-hover: #a259ff;
+  --card-background: #a259ff;
+  --glossary-background: #a259ff;
+  --glossary-border-color: #a259ff;
+  --icon-background: #a259ff;
+  --icon-background-hover: #4dabf7;
+  --card-color: #07061f;
+  --footer-special-background: rgba(37, 20, 138, 0.6);
+  --mainBtn-background: #a259ff;
+  --mainBtn-border: none;
+  --mainBtn-color: #07061f;
+  --mainBtnSpecial-background: #4dabf7;
+  --mainBtnSpecial-border: #a259ff;
+  --pulse-color-first: #a259ff;
+  --pulse-color-second: #4dabf7;
+  --pulse-box-shadow: 162, 89, 255;
+  --faq-color: #f5f3ff;
+  --faq-border: 1px solid var(--faq-color-active);
+  --faq-color-active: #a259ff;
+}
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+a {
+  color: var(--sb-accent);
+}

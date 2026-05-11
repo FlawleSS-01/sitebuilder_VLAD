@@ -1,0 +1,10 @@
+Шаблоны проекта — подпапки здесь же (modules/source), кроме служебных:
+  theme-presets, placeholder-assets
+
+Имена каталогов = значения в API GET /api/build/templates и в селекте «Шаблон проекта».
+
+Текущие заготовки (копия default-template без node_modules в репозитории):
+  default-template, app, app-2, app-3, app-new-head
+
+Чтобы добавить свой шаблон: скопируйте дерево как у default-template (или сделайте robocopy /E /XD node_modules dist),
+затем в новой папке выполните npm install при необходимости.
