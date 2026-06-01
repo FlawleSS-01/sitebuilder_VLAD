@@ -180,7 +180,7 @@ function generatePagesByLocaleJs(projectPath: string, settings: any): void {
 
   if (!settings.pages || Object.keys(settings.pages).length === 0) {
     const lines = locales
-      .map((l) => `  ${JSON.stringify(l)}: {},`)
+      .map((l: string) => `  ${JSON.stringify(l)}: {},`)
       .join("\n");
     fs.writeFileSync(
       outPath,

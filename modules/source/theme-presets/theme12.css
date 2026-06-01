@@ -1,0 +1,32 @@
+:root {
+  --sb-style-id: "diagonal";
+  --sb-hero-align: center;
+  --sb-bg: #2c1810;
+  --sb-bg-2: #922b21;
+  --sb-fg: #f5f5f5;
+  --sb-fg-soft: rgba(255, 245, 240, 0.88);
+  --sb-accent: #c0392b;
+  --sb-accent-2: #922b21;
+  --sb-accent-3: #e74c3c;
+  --sb-card: rgba(255,255,255,0.06);
+  --sb-card-border: rgba(255,255,255,0.12);
+  --sb-header-bg: rgba(0,0,0,0.75);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(44, 24, 16, 0.94) 0%,
+    rgba(44, 24, 16, 0.76) 45%,
+    rgba(146, 43, 33, 0.48) 100%
+  );
+  --sb-marquee-fg: #ff8a65;
+  --sb-marquee-bullet: #ffb74d;
+  --sb-marquee-border: #e64a19;
+  --sb-marquee-border-2: #ff7043;
+  --main-color: #922b21;
+  --text-color: #f5f5f5;
+  --hero-color: #fff8f5;
+  --card-background: #c0392b;
+  --mainBtn-background: #c0392b;
+  --mainBtn-color: #2c1810;
+  --faq-color-active: #c0392b;
+}
+body { background: var(--sb-bg); color: var(--sb-fg); }

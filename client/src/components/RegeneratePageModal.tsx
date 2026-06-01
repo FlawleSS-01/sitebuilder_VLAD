@@ -9,6 +9,7 @@ import {
   promptLanguageForLocale,
   formatTextGenError,
 } from "../utils/locale.js";
+import { fetchJson } from "../utils/api";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
@@ -69,6 +70,8 @@ interface RegeneratePageModalProps {
   pageName?: string; // Название страницы для кастомных страниц
   isCustom?: boolean; // Флаг кастомной страницы
   onSuccess: () => void;
+  /** После изменения списка блоков на сервере — перезапуск активного preview (Vite подхватит правки). */
+  onPreviewNeedsRestart?: () => void | Promise<void>;
 }
 
 const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
@@ -83,6 +86,7 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
   pageName,
   isCustom = false,
   onSuccess,
+  onPreviewNeedsRestart,
 }) => {
   const [selectedBlocks, setSelectedBlocks] = useState<string[]>(currentBlocks);
   const [blockTemplates, setBlockTemplates] = useState<Record<string, string>>(
@@ -172,28 +176,68 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, pageType, isCustom, projectName, defaultLocale, locales]);
 
+  const saveBlocksOrderRequest = async (
+    blocks: string[],
+    templates: Record<string, string>,
+    keywords: Record<string, string>
+  ): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_URL}/api/build/update-blocks-order`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectName: projectName,
+          pageType: pageType,
+          blocks,
+          blockTemplates: templates,
+          blockKeywords: keywords,
+        }),
+      });
+      if (!res.ok) {
+        console.warn(
+          "Не удалось сохранить порядок блоков:",
+          await res.text().catch(() => "")
+        );
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn("Не удалось сохранить порядок блоков:", err);
+      return false;
+    }
+  };
+
+  const pushBlocksOrderToServer = async (
+    blocks: string[],
+    templates: Record<string, string>,
+    keywords: Record<string, string>
+  ) => {
+    await saveBlocksOrderRequest(blocks, templates, keywords);
+    await onPreviewNeedsRestart?.();
+  };
+
   const toggleBlock = (block: string) => {
     if (selectedBlocks.includes(block)) {
-      setSelectedBlocks(selectedBlocks.filter((b) => b !== block));
-      // Удаляем шаблон при удалении блока
-      setBlockTemplates((prev) => {
-        const newTemplates = { ...prev };
-        delete newTemplates[block];
-        return newTemplates;
-      });
-      setBlockKeywords((prev) => {
-        if (!prev[block]) return prev;
-        const next = { ...prev };
-        delete next[block];
-        return next;
-      });
+      const newBlocks = selectedBlocks.filter((b) => b !== block);
+      const newTemplates = { ...blockTemplates };
+      delete newTemplates[block];
+      const newKeywords = { ...blockKeywords };
+      delete newKeywords[block];
+      setSelectedBlocks(newBlocks);
+      setBlockTemplates(newTemplates);
+      setBlockKeywords(newKeywords);
+      void pushBlocksOrderToServer(newBlocks, newTemplates, newKeywords);
     } else {
-      setSelectedBlocks([...selectedBlocks, block]);
-      // Устанавливаем дефолтный шаблон при добавлении блока
-      setBlockTemplates((prev) => ({
-        ...prev,
+      const newBlocks = [...selectedBlocks, block];
+      const newTemplates = {
+        ...blockTemplates,
         [block]: "h2_2p",
-      }));
+      };
+      setSelectedBlocks(newBlocks);
+      setBlockTemplates(newTemplates);
+      void pushBlocksOrderToServer(newBlocks, newTemplates, blockKeywords);
     }
   };
 
@@ -213,14 +257,14 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
   // Helper used by both flows below: pushes a new block name into local
   // state, persists the new block list to project-settings.json, and
   // marks the block as "ungenerated" until the user clicks ▶ on it.
-  const persistNewBlock = (
+  const persistNewBlock = async (
     blockName: string,
     keywords?: string
-  ): {
+  ): Promise<{
     newBlocks: string[];
     newTemplates: Record<string, string>;
     newKeywords: Record<string, string>;
-  } => {
+  }> => {
     const newBlocks = [...selectedBlocks, blockName];
     const newTemplates = {
       ...blockTemplates,
@@ -236,32 +280,15 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
     setBlockKeywords(newKeywords);
     setUngeneratedBlocks((prev) => new Set(prev).add(blockName));
 
-    fetch(`${API_URL}/api/build/update-blocks-order`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        projectName: projectName,
-        pageType: pageType,
-        blocks: newBlocks,
-        blockTemplates: newTemplates,
-        blockKeywords: newKeywords,
-      }),
-    }).catch((err) => {
-      console.warn(
-        "Не удалось сохранить новый блок в project-settings.json:",
-        err
-      );
-    });
+    await pushBlocksOrderToServer(newBlocks, newTemplates, newKeywords);
 
     return { newBlocks, newTemplates, newKeywords };
   };
 
-  const handleAddCustomBlock = () => {
+  const handleAddCustomBlock = async () => {
     if (newBlockName.trim() && !selectedBlocks.includes(newBlockName.trim())) {
       const blockName = newBlockName.trim();
-      persistNewBlock(blockName, newBlockKeywords);
+      await persistNewBlock(blockName, newBlockKeywords);
       setNewBlockName("");
       setNewBlockKeywords("");
       setShowAddInput(false);
@@ -278,7 +305,7 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
     const blockName = newBlockName.trim();
     if (!blockName || selectedBlocks.includes(blockName)) return;
 
-    const { newBlocks, newKeywords } = persistNewBlock(
+    const { newBlocks, newKeywords } = await persistNewBlock(
       blockName,
       newBlockKeywords
     );
@@ -292,8 +319,8 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
     setRegeneratingBlockIndex(newBlockIndex);
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/text-generation/generate-single-block`,
+      const { response, data } = await fetchJson(
+        "/api/text-generation/generate-single-block",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -315,7 +342,6 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
           }),
         }
       );
-      const data = await response.json();
       if (!response.ok) {
         throw new Error(
           formatTextGenError(data) || "Ошибка при генерации блока"
@@ -326,6 +352,7 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
         next.delete(blockName);
         return next;
       });
+      await onPreviewNeedsRestart?.();
     } catch (err: any) {
       console.error("Error:", err);
       alert(err.message || "Произошла ошибка при генерации блока");
@@ -399,28 +426,7 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
 
       // Обновляем project-settings.json (всегда — и для локально
       // добавленных, и для реально удалённых).
-      const saveOrderResponse = await fetch(
-        `${API_URL}/api/build/update-blocks-order`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectName: projectName,
-            pageType: pageType,
-            blocks: newBlocks,
-            blockTemplates: newTemplates,
-            blockKeywords: newKeywords,
-          }),
-        }
-      );
-
-      if (!saveOrderResponse.ok) {
-        console.warn(
-          "Не удалось обновить project-settings.json при удалении блока"
-        );
-      }
+      await pushBlocksOrderToServer(newBlocks, newTemplates, newKeywords);
 
       // Не вызываем onSuccess() здесь, чтобы не перезагружать модальное окно
     } catch (err: any) {
@@ -463,24 +469,12 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
   const updatePageBlocksOrder = async () => {
     try {
       // Сохраняем порядок блоков в project-settings.json
-      const saveOrderResponse = await fetch(
-        `${API_URL}/api/build/update-blocks-order`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectName: projectName,
-            pageType: pageType,
-            blocks: selectedBlocks,
-            blockTemplates: blockTemplates,
-            blockKeywords: blockKeywords,
-          }),
-        }
+      const savedOrder = await saveBlocksOrderRequest(
+        selectedBlocks,
+        blockTemplates,
+        blockKeywords
       );
-
-      if (!saveOrderResponse.ok) {
+      if (!savedOrder) {
         console.error(
           "Ошибка при сохранении порядка блоков в project-settings.json"
         );
@@ -580,6 +574,8 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
 
       if (!saveResponse.ok) {
         console.error("Ошибка при сохранении порядка блоков в JSON");
+      } else {
+        await onPreviewNeedsRestart?.();
       }
       // Не вызываем onSuccess() здесь, чтобы не перезагружать модальное окно
     } catch (err) {
@@ -597,8 +593,8 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
       const blockTemplate = blockTemplates[blockType] || "h2_2p";
       const blockKeywordsForBlock = blockKeywords[blockType] || "";
 
-      const response = await fetch(
-        `${API_URL}/api/text-generation/generate-single-block`,
+      const { response, data } = await fetchJson(
+        "/api/text-generation/generate-single-block",
         {
           method: "POST",
           headers: {
@@ -623,8 +619,6 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
         }
       );
 
-      const data = await response.json();
-
       if (!response.ok) {
         throw new Error(
           formatTextGenError(data) || "Ошибка при перегенерации блока"
@@ -632,26 +626,11 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
       }
 
       // Обновляем project-settings.json с текущим порядком блоков
-      const saveOrderResponse = await fetch(
-        `${API_URL}/api/build/update-blocks-order`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectName: projectName,
-            pageType: pageType,
-            blocks: selectedBlocks,
-            blockTemplates: blockTemplates,
-            blockKeywords: blockKeywords,
-          }),
-        }
+      await pushBlocksOrderToServer(
+        selectedBlocks,
+        blockTemplates,
+        blockKeywords
       );
-
-      if (!saveOrderResponse.ok) {
-        console.warn("Не удалось обновить project-settings.json");
-      }
 
       // Убираем блок из списка не сгенерированных
       setUngeneratedBlocks((prev) => {
@@ -682,8 +661,8 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
 
       // Для кастомных страниц используем специальный endpoint
       const endpoint = isCustom
-        ? `${API_URL}/api/text-generation/generate-custom`
-        : `${API_URL}/api/text-generation/generate`;
+        ? "/api/text-generation/generate-custom"
+        : "/api/text-generation/generate";
 
       // Отдельно собираем ключевые слова только для тех блоков,
       // которые сейчас в списке (на случай если что-то осталось от
@@ -717,7 +696,7 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
         requestBody.pageType = pageType;
       }
 
-      const response = await fetch(endpoint, {
+      const { response, data } = await fetchJson(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -727,8 +706,6 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
       });
 
       clearTimeout(timeoutId);
-
-      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(formatTextGenError(data) || "Ошибка при генерации");
@@ -761,15 +738,16 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
         saveBody.pages = { [pageType]: data.data };
       }
 
-      const saveResponse = await fetch(`${API_URL}/api/build/save-pages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(saveBody),
-      });
-
-      const saveData = await saveResponse.json();
+      const { response: saveResponse, data: saveData } = await fetchJson(
+        "/api/build/save-pages",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(saveBody),
+        }
+      );
 
       if (!saveResponse.ok) {
         throw new Error(saveData.error || "Не удалось сохранить страницу");
@@ -777,6 +755,7 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
 
       onSuccess();
       onClose();
+      window.location.reload();
     } catch (err: any) {
       console.error("Error:", err);
       alert(err.message || "Произошла ошибка при генерации");
@@ -784,8 +763,6 @@ const RegeneratePageModal: React.FC<RegeneratePageModalProps> = ({
       setGenerating(false);
     }
   };
-
-  if (!isOpen) return null;
 
   const unusedBlocks = availableBlocks.filter(
     (block) => !selectedBlocks.includes(block)

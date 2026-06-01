@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
-import { initImageGeneration, generateAndSaveImage } from "./index.js";
+import { generateAndSaveImage } from "./index.js";
+import { ensureRunwareInitialized } from "./runwareSetup.js";
 import type { ImageSizeOption } from "./types.js";
 import { parseImageSize } from "./types.js";
 import {
@@ -18,12 +19,30 @@ import {
   writePlaceholderWebp,
   writePlaceholderLogoWebp,
 } from "./utils/placeholderImage.js";
+import { runExclusiveForProject } from "../build/utils/projectSettingsLock.js";
 import {
   getProjectSettings,
   saveProjectSettings,
   getProjectPath,
   projectExists,
 } from "../build/utils/projectManager.js";
+import { generateFavicons } from "../build/utils/faviconGenerator.js";
+import { syncIndexHtmlHead } from "../build/utils/indexHtmlSync.js";
+
+/** Favicon из logo.webp и ссылки в index.html — без падения генерации логотипа. */
+async function ensureFaviconFromLogoFile(
+  projectPath: string,
+  logoAbsolutePath: string,
+  manifestName: string
+): Promise<void> {
+  await generateFavicons(projectPath, logoAbsolutePath, manifestName);
+  try {
+    syncIndexHtmlHead(projectPath);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[image-generation] syncIndexHtmlHead после favicon:", msg);
+  }
+}
 
 interface GenerateImageRequest {
   prompt: string;
@@ -32,26 +51,6 @@ interface GenerateImageRequest {
   pageType?: string;
   imageName?: string;
 }
-
-// Инициализация Runware клиента (будет вызвана при первом использовании)
-let runwareInitialized = false;
-
-const ensureRunwareInitialized = () => {
-  if (!runwareInitialized && process.env.RUNWARE_API_KEY) {
-    initImageGeneration({
-      runwareApiKey: process.env.RUNWARE_API_KEY,
-      runwareApiUrl: process.env.RUNWARE_API_URL,
-      runwareModel: process.env.RUNWARE_MODEL || "flux.2",
-      runwareGuidance: process.env.RUNWARE_GUIDANCE
-        ? parseInt(process.env.RUNWARE_GUIDANCE)
-        : undefined,
-      runwareSteps: process.env.RUNWARE_STEPS
-        ? parseInt(process.env.RUNWARE_STEPS)
-        : undefined,
-    });
-    runwareInitialized = true;
-  }
-};
 
 export const generateImage = async (req: Request, res: Response) => {
   try {
@@ -237,58 +236,61 @@ function collectImageGenerationJobs(
   return jobs;
 }
 
-function persistPageImagesInProjectSettings(
+export async function persistPageImagesInProjectSettings(
   projectName: string,
   pageType: string,
   images: GeneratedPageImage[]
-): void {
-  const currentSettings = getProjectSettings(projectName);
-  if (!currentSettings) {
-    throw new Error(`Project settings not found for ${projectName}`);
-  }
-  const projectPath = getProjectPath(projectName);
-  const existingPages = { ...(currentSettings.pages || {}) };
+): Promise<void> {
+  await runExclusiveForProject(projectName, () => {
+    const currentSettings = getProjectSettings(projectName);
+    if (!currentSettings) {
+      throw new Error(`Project settings not found for ${projectName}`);
+    }
+    const projectPath = getProjectPath(projectName);
+    const existingPages = { ...(currentSettings.pages || {}) };
 
-  if (existingPages[pageType]) {
-    existingPages[pageType] = {
-      ...existingPages[pageType],
-      images: images || [],
-      imagesGenerated: true,
-    };
-  } else {
-    existingPages[pageType] = {
-      pageType,
-      blocks: [],
-      generated: false,
-      images: images || [],
-      imagesGenerated: true,
-    };
-  }
+    if (existingPages[pageType]) {
+      existingPages[pageType] = {
+        ...existingPages[pageType],
+        images: images || [],
+        imagesGenerated: true,
+      };
+    } else {
+      existingPages[pageType] = {
+        pageType,
+        blocks: [],
+        generated: false,
+        images: images || [],
+        imagesGenerated: true,
+      };
+    }
 
-  saveProjectSettings(projectPath, {
-    ...currentSettings,
-    pages: existingPages,
-  });
+    saveProjectSettings(projectPath, {
+      ...currentSettings,
+      pages: existingPages,
+    });
 
-  if (images && Array.isArray(images)) {
-    for (const image of images) {
-      if (image.name) {
-        updateImageInJson(projectPath, image.name, {
-          alt: image.alt || "",
-          title: image.title || "",
-          src: `/images/${image.name}`,
-        });
+    if (images && Array.isArray(images)) {
+      for (const image of images) {
+        if (image.name) {
+          updateImageInJson(projectPath, image.name, {
+            alt: image.alt || "",
+            title: image.title || "",
+            src: `/images/${image.name}`,
+          });
+        }
       }
     }
-  }
+  });
 }
 
-async function generatePageImagesCore(
+export async function generatePageImagesCore(
   projectName: string,
   pageType: string,
   pageName: string | undefined,
   isCustom: boolean | undefined,
-  runwareOn: boolean
+  runwareOn: boolean,
+  imageCount = 3
 ): Promise<{ images: GeneratedPageImage[] }> {
   const pageFileName =
     isCustom && pageName
@@ -299,6 +301,10 @@ async function generatePageImagesCore(
   const imagesDir = path.join(projectPath, "public", "images");
 
   fs.mkdirSync(imagesDir, { recursive: true });
+
+  if (runwareOn) {
+    ensureRunwareInitialized();
+  }
 
   const settingsPath = path.join(projectPath, "project-settings.json");
   let country: string | undefined;
@@ -335,9 +341,10 @@ async function generatePageImagesCore(
   const activePreset =
     imagePresets.length > 0 ? imagePresets[0] : defaultPreset;
 
+  const slotCount = Math.min(3, Math.max(1, imageCount));
   const generatedImages: GeneratedPageImage[] = [];
 
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= slotCount; i++) {
     const imageName =
       i === 1 ? `${pageFileName}.webp` : `${pageFileName}${i - 1}.webp`;
 
@@ -358,61 +365,81 @@ async function generatePageImagesCore(
     };
 
     console.log(
-      `[image-generation] (${pageType}) Слот ${i}/3 — генерация alt+промта по контексту: бренд=${promptCtx.brand}, страна=${promptCtx.country}`
+      `[image-generation] (${pageType}) Слот ${i}/${slotCount} — генерация alt+промта по контексту: бренд=${promptCtx.brand}, страна=${promptCtx.country}`
     );
 
     const meta = await generateImagePromptAndAlt(promptCtx);
 
     console.log(
-      `[image-generation] (${pageType}) Слот ${i}/3 — alt: "${meta.alt.slice(
+      `[image-generation] (${pageType}) Слот ${i}/${slotCount} — alt: "${meta.alt.slice(
         0,
         80
       )}...", промт: "${meta.prompt.slice(0, 80)}..."`
     );
 
-    try {
-      let promptOut = meta.prompt;
-      let alt: string = meta.alt;
-      let title: string = meta.title;
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        let promptOut = meta.prompt;
+        let alt: string = meta.alt;
+        let title: string = meta.title;
 
-      if (!runwareOn) {
-        await writePlaceholderWebp(imagePath, {
-          label: `${pageType} · ${i}/3`,
-          brand: brand || projectName,
-          index: i,
+        if (!runwareOn) {
+          await writePlaceholderWebp(imagePath, {
+            label: `${pageType} · ${i}/${slotCount}`,
+            brand: brand || projectName,
+            index: i,
+          });
+          promptOut = "[placeholder]";
+        } else {
+          await generateAndSaveImage(meta.prompt, size, imagePath);
+          console.log(
+            `[image-generation] Изображение ${i}/${slotCount} успешно сгенерировано: ${imagePath}`
+          );
+        }
+
+        const imageUrl = `/projects/${projectName}/public/images/${imageName}`;
+
+        updateImageInJson(projectPath, imageName, {
+          alt,
+          title,
+          src: `/images/${imageName}`,
         });
-        promptOut = "[placeholder]";
-      } else {
-        await generateAndSaveImage(meta.prompt, size, imagePath);
-        console.log(
-          `[image-generation] Изображение ${i}/3 успешно сгенерировано: ${imagePath}`
-        );
+
+        generatedImages.push({
+          name: imageName,
+          url: imageUrl,
+          path: imagePath,
+          prompt: promptOut,
+          alt,
+          title,
+          placeholder: !runwareOn,
+        });
+        lastError = null;
+        break;
+      } catch (error: unknown) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (attempt === 0) {
+          console.warn(
+            `[image-generation] Retry slot ${i}/${slotCount} for ${pageType}:`,
+            lastError.message
+          );
+        }
       }
-
-      const imageUrl = `/projects/${projectName}/public/images/${imageName}`;
-
-      updateImageInJson(projectPath, imageName, {
-        alt,
-        title,
-        src: `/images/${imageName}`,
-      });
-
-      generatedImages.push({
-        name: imageName,
-        url: imageUrl,
-        path: imagePath,
-        prompt: promptOut,
-        alt,
-        title,
-        placeholder: !runwareOn,
-      });
-    } catch (error: any) {
+    }
+    if (lastError) {
       console.error(
-        `[image-generation] Ошибка при генерации изображения ${i}/3:`,
-        error.message || error,
-        error.stack
+        `[image-generation] Ошибка при генерации изображения ${i}/${slotCount}:`,
+        lastError.message
       );
     }
+  }
+
+  if (generatedImages.length === 0 && slotCount > 0) {
+    const hint = runwareOn
+      ? "Проверьте RUNWARE_API_KEY и логи Runware."
+      : "Проверьте установку sharp (IMAGE_PROVIDER=placeholder).";
+    throw new Error(`Не удалось сгенерировать ни одного изображения. ${hint}`);
   }
 
   return { images: generatedImages };
@@ -481,6 +508,48 @@ interface GenerateAllProjectImagesRequest {
   projectName: string;
 }
 
+export function listImageGenerationJobsForProject(projectName: string): Array<{
+  pageType: string;
+  pageName?: string;
+  isCustom?: boolean;
+}> {
+  const settings = getProjectSettings(projectName);
+  if (!settings || typeof settings !== "object") {
+    return [];
+  }
+  const projectPath = getProjectPath(projectName);
+  return collectImageGenerationJobs(
+    projectPath,
+    settings as Record<string, unknown>
+  );
+}
+
+export const getImageGenerationJobs = async (req: Request, res: Response) => {
+  try {
+    const { projectName } = req.params;
+
+    if (!projectName) {
+      return res.status(400).json({ error: "Missing projectName" });
+    }
+    if (!projectExists(projectName)) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const jobs = listImageGenerationJobsForProject(projectName);
+
+    res.json({
+      success: true,
+      data: { jobs, count: jobs.length },
+    });
+  } catch (error: any) {
+    console.error("[image-generation] image-jobs:", error);
+    res.status(500).json({
+      error: "Failed to list image generation jobs",
+      message: error.message,
+    });
+  }
+};
+
 export const generateAllProjectImages = async (
   req: Request,
   res: Response
@@ -510,6 +579,7 @@ export const generateAllProjectImages = async (
     if (shouldUseRunware() && !process.env.RUNWARE_API_KEY) {
       return res.status(500).json({
         error: "Runware API key is not configured",
+        message: "Укажите RUNWARE_API_KEY в .env или IMAGE_PROVIDER=placeholder",
       });
     }
 
@@ -518,16 +588,14 @@ export const generateAllProjectImages = async (
       ensureRunwareInitialized();
     }
 
-    const projectPath = getProjectPath(projectName);
-    const jobs = collectImageGenerationJobs(
-      projectPath,
-      settings as Record<string, unknown>
-    );
+    const jobs = listImageGenerationJobsForProject(projectName);
 
     if (jobs.length === 0) {
       return res.status(400).json({
         error:
           "Нет страниц для генерации картинок (не найдены JSON страниц на диске и не отмечены как сгенерированные).",
+        message:
+          "Сначала сгенерируйте тексты страниц, затем повторите массовую генерацию картинок.",
       });
     }
 
@@ -556,7 +624,7 @@ export const generateAllProjectImages = async (
           continue;
         }
 
-        persistPageImagesInProjectSettings(
+        await persistPageImagesInProjectSettings(
           projectName,
           job.pageType,
           images
@@ -935,11 +1003,16 @@ export const generateLogo = async (req: Request, res: Response) => {
 
     const logoWebp = path.join(projectPath, "public", "images", "logo.webp");
 
+    const manifestName =
+      brand.replace(/[\r\n\x00-\x1f]/g, " ").trim().slice(0, 128) ||
+      "Casino";
+
     if (!shouldUseRunware()) {
       console.log(
         `[image-generation] Плейсхолдер логотипа для ${projectName}, бренд: ${brand}`
       );
       await writePlaceholderLogoWebp(projectPath, brand);
+      await ensureFaviconFromLogoFile(projectPath, logoWebp, manifestName);
       return res.json({
         success: true,
         data: {
@@ -949,6 +1022,7 @@ export const generateLogo = async (req: Request, res: Response) => {
             path: logoWebp,
             placeholder: true,
           },
+          faviconGenerated: true,
         },
       });
     }
@@ -961,10 +1035,17 @@ export const generateLogo = async (req: Request, res: Response) => {
 
     ensureRunwareInitialized();
 
-    // Логотип печатает сам сайт текстом поверх — модельке просим сделать
-    // только графическую эмблему (иконку), без текста, на прозрачно-тёмном фоне.
-    // Так же запрещаем буквы в негативном промте Runware.
-    const prompt = `Premium online casino emblem icon, centered minimalist mark, glowing neon casino motifs (a chip, a stylised crown, a card suit, or a star), gold and deep purple gradient with electric blue rim-light, glossy metallic finish, dramatic studio lighting, ultra-clean composition on a dark abstract background, suitable for a website header. No text, no letters, no words, no typography, no logos other than the central emblem.`;
+    const brandSafe = brand
+      .replace(/[\r\n\x00-\x1f]/g, " ")
+      .trim()
+      .slice(0, 64);
+    const brandForPrompt = brandSafe || "Casino";
+
+    // Wordmark: только название бренда как яркая типографика (глобальный negative Runware запрещает текст).
+    const prompt = `Horizontal casino wordmark logo banner. The ONLY readable text in the image must spell exactly: "${brandForPrompt}". Use one line of bold display typography — saturated color gradient on the letters (gold, electric blue, magenta neon, emerald accents), soft chromatic glow, subtle 3D bevel, luxury iGaming aesthetic, razor-sharp edges, centered, generous margins, dark navy-to-black background, high contrast, professional branding asset for website header. Do not add any other words, slogans, URLs, or symbols except those letters that form the brand name "${brandForPrompt}".`;
+
+    const logoNegativePrompt =
+      "watermark, stock watermark, QR code, illegible text, gibberish letters, misspelled words, wrong typography, extra random words, long slogan, tagline, subtitle, second line of marketing copy, duplicate overlapping text, cropped incomplete letters, busy cluttered background, low resolution, blurry, jpeg artifacts, deformed letters, mascot character, cartoon animal, photograph, realistic human face, clipart emblem with no readable brand text";
 
     const imagesDir = path.join(projectPath, "public", "images");
     fs.mkdirSync(imagesDir, { recursive: true });
@@ -972,9 +1053,15 @@ export const generateLogo = async (req: Request, res: Response) => {
     const tempPng = path.join(imagesDir, `logo-gen-${Date.now()}.png`);
 
     console.log(
-      `[image-generation] Генерация логотипа для ${projectName}, бренд: ${brand}`
+      `[image-generation] Генерация логотипа (wordmark) для ${projectName}, бренд: ${brandForPrompt}`
     );
-    await generateAndSaveImage(prompt, "1536x512", tempPng);
+    await generateAndSaveImage(
+      prompt,
+      "1536x512",
+      tempPng,
+      undefined,
+      logoNegativePrompt
+    );
 
     await sharp(tempPng).webp({ quality: 90 }).toFile(logoWebp);
     try {
@@ -985,6 +1072,8 @@ export const generateLogo = async (req: Request, res: Response) => {
 
     const imageUrl = `/projects/${projectName}/public/images/logo.webp`;
 
+    await ensureFaviconFromLogoFile(projectPath, logoWebp, manifestName);
+
     res.json({
       success: true,
       data: {
@@ -993,6 +1082,7 @@ export const generateLogo = async (req: Request, res: Response) => {
           url: imageUrl,
           path: logoWebp,
         },
+        faviconGenerated: true,
       },
     });
   } catch (error: any) {
@@ -1058,6 +1148,22 @@ export const uploadLogo = async (req: Request, res: Response) => {
     // URL для доступа к логотипу
     const imageUrl = `/projects/${projectName}/public/images/${imageName}`;
 
+    const settingsPathUpload = path.join(projectPath, "project-settings.json");
+    let manifestNameUpload = "Casino";
+    if (fs.existsSync(settingsPathUpload)) {
+      try {
+        const s = JSON.parse(fs.readFileSync(settingsPathUpload, "utf-8"));
+        const b = (s.brand || "").trim();
+        if (b) manifestNameUpload = b;
+      } catch {
+        /* ignore */
+      }
+    }
+    const manifestShort =
+      manifestNameUpload.replace(/[\r\n\x00-\x1f]/g, " ").trim().slice(0, 128) ||
+      "Casino";
+    await ensureFaviconFromLogoFile(projectPath, imagePath, manifestShort);
+
     res.json({
       success: true,
       data: {
@@ -1066,6 +1172,7 @@ export const uploadLogo = async (req: Request, res: Response) => {
           url: imageUrl,
           path: imagePath,
         },
+        faviconGenerated: true,
       },
     });
   } catch (error: any) {

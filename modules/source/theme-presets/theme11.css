@@ -1,0 +1,28 @@
+:root {
+  --sb-style-id: "deco";
+  --sb-hero-align: center;
+  --sb-bg: #1c2833;
+  --sb-bg-2: #d35400;
+  --sb-fg: #f5f5f5;
+  --sb-fg-soft: rgba(245, 245, 245, 0.82);
+  --sb-accent: #f39c12;
+  --sb-accent-2: #d35400;
+  --sb-accent-3: #f39c12;
+  --sb-card: rgba(255,255,255,0.06);
+  --sb-card-border: rgba(255,255,255,0.12);
+  --sb-header-bg: rgba(0,0,0,0.75);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(28, 40, 51, 0.94) 0%,
+    rgba(28, 40, 51, 0.74) 48%,
+    rgba(211, 84, 0, 0.42) 100%
+  );
+  --main-color: #d35400;
+  --text-color: #f5f5f5;
+  --hero-color: #f5f5f5;
+  --card-background: #f39c12;
+  --mainBtn-background: #f39c12;
+  --mainBtn-color: #1c2833;
+  --faq-color-active: #f39c12;
+}
+body { background: var(--sb-bg); color: var(--sb-fg); }

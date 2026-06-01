@@ -1,0 +1,20 @@
+:root {
+  --sb-style-id: "glass";
+  --sb-hero-align: center;
+  --sb-bg: #051923;
+  --sb-bg-2: #0077b6;
+  --sb-fg: #f5f5f5;
+  --sb-accent: #00b4d8;
+  --sb-accent-2: #0077b6;
+  --sb-accent-3: #00b4d8;
+  --sb-card: rgba(255,255,255,0.06);
+  --sb-card-border: rgba(255,255,255,0.12);
+  --sb-header-bg: rgba(0,0,0,0.75);
+  --main-color: #0077b6;
+  --text-color: #f5f5f5;
+  --card-background: #00b4d8;
+  --mainBtn-background: #00b4d8;
+  --mainBtn-color: #051923;
+  --faq-color-active: #00b4d8;
+}
+body { background: var(--sb-bg); color: var(--sb-fg); }

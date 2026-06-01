@@ -7,6 +7,7 @@ import {
   type PageSeoSummary,
 } from "./jsonLdBuilder.js";
 import { writeSeoArtifacts } from "./seoArtifacts.js";
+import { titleWithBrandLeading } from "../../source/page-title-brand-first.js";
 
 const PAGE_FILE_MAP: Record<string, string> = {
   homepage: "main.json",
@@ -203,7 +204,8 @@ export function syncIndexHtmlHead(projectPath: string): void {
   const metaDescription = truncateMeta(
     home?.description || `Official site — ${brand}.`
   );
-  const homeName = home?.name || brand;
+  const homeDisplayName = home?.name || brand;
+  const homeTitleForMeta = titleWithBrandLeading(brand, homeDisplayName);
 
   const graph = buildJsonLdGraph({
     origin,
@@ -246,7 +248,7 @@ export function syncIndexHtmlHead(projectPath: string): void {
   const ogTags = [
     `<meta property="og:type" content="website" />`,
     `<meta property="og:site_name" content="${escapeAttr(brand)}" />`,
-    `<meta property="og:title" content="${escapeAttr(homeName)}" />`,
+    `<meta property="og:title" content="${escapeAttr(homeTitleForMeta)}" />`,
     `<meta property="og:description" content="${escapeAttr(metaDescription)}" />`,
     `<meta property="og:url" content="${escapeAttr(origin + "/")}" />`,
     `<meta property="og:image" content="${escapeAttr(ogImage)}" />`,
@@ -267,16 +269,29 @@ export function syncIndexHtmlHead(projectPath: string): void {
   }
   const twitterTags = [
     `<meta name="twitter:card" content="summary_large_image" />`,
-    `<meta name="twitter:title" content="${escapeAttr(homeName)}" />`,
+    `<meta name="twitter:title" content="${escapeAttr(homeTitleForMeta)}" />`,
     `<meta name="twitter:description" content="${escapeAttr(metaDescription)}" />`,
     `<meta name="twitter:image" content="${escapeAttr(ogImage)}" />`,
   ];
+
+  const faviconIco = path.join(projectPath, "public", "favicon", "favicon.ico");
+  const faviconLinkTags =
+    fs.existsSync(faviconIco)
+      ? [
+          `<link rel="icon" href="/favicon/favicon.ico" sizes="48x48" type="image/x-icon" />`,
+          `<link rel="icon" type="image/png" sizes="32x32" href="/favicon/favicon-32x32.png" />`,
+          `<link rel="icon" type="image/png" sizes="16x16" href="/favicon/favicon-16x16.png" />`,
+          `<link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />`,
+          `<link rel="manifest" href="/favicon/site.webmanifest" />`,
+        ]
+      : [];
 
   const injection = [
     INJECT_START,
     `<meta name="description" content="${escapeAttr(metaDescription)}" />`,
     `<meta name="robots" content="index, follow" />`,
     `<link rel="canonical" href="${escapeAttr(origin + "/")}" />`,
+    ...faviconLinkTags,
     ...hreflangTags,
     ...ogTags,
     ...twitterTags,
@@ -302,7 +317,7 @@ export function syncIndexHtmlHead(projectPath: string): void {
   if (/<title>[^<]*<\/title>/i.test(html)) {
     html = html.replace(
       /<title>[^<]*<\/title>/i,
-      `<title>${escapeXmlText(home?.name ? `${home.name} | ${brand}` : brand)}</title>`
+      `<title>${escapeXmlText(home?.name ? titleWithBrandLeading(brand, home.name) : brand)}</title>`
     );
   }
 

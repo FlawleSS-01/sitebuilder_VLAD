@@ -11,6 +11,8 @@ import { runNpmCli } from "../../utils/npmCli.js";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { ensureSharedProjectFiles } from "../../build/utils/projectManager.js";
+import { copyNodeModulesToProject } from "./nodeModulesCopy.js";
 
 export interface PreviewInfo {
   projectName: string;
@@ -158,32 +160,98 @@ export const checkDependencies = (
   return true;
 };
 
+/** Одна установка npm на путь проекта (без параллельных npm install). */
+const installChains = new Map<string, Promise<void>>();
+
+type ActiveInstall = {
+  startedAt: number;
+};
+
+const activeInstalls = new Map<string, ActiveInstall>();
+const installLastErrors = new Map<string, string>();
+
+export function getNpmInstallStatus(projectPath: string): {
+  installing: boolean;
+  elapsedSeconds: number;
+  dependenciesInstalled: boolean;
+  lastError: string | null;
+} {
+  const resolvedPath = path.resolve(projectPath);
+  const depsOk = checkDependencies(resolvedPath, false);
+  if (depsOk) {
+    activeInstalls.delete(resolvedPath);
+    installLastErrors.delete(resolvedPath);
+  }
+  const active = activeInstalls.get(resolvedPath);
+  return {
+    installing: !!active && !depsOk,
+    elapsedSeconds: active
+      ? Math.floor((Date.now() - active.startedAt) / 1000)
+      : 0,
+    dependenciesInstalled: depsOk,
+    lastError: installLastErrors.get(resolvedPath) ?? null,
+  };
+}
+
 /**
- * Установка зависимостей для React проекта
+ * Зависимости: копирование node_modules из шаблона (npm из Node на OneDrive часто зависает).
  */
-export const installDependencies = (projectPath: string): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const nodeModules = path.join(projectPath, "node_modules");
+export const installDependencies = (projectPath: string): Promise<void> => {
+  const resolvedPath = path.resolve(projectPath);
+  ensureSharedProjectFiles(resolvedPath);
 
-    // Если зависимости уже установлены - пропускаем
-    if (checkDependencies(projectPath, true)) {
-      resolve();
-      return;
+  if (checkDependencies(resolvedPath, false)) {
+    installLastErrors.delete(resolvedPath);
+    return Promise.resolve();
+  }
+
+  const pending = installChains.get(resolvedPath);
+  if (pending) {
+    return pending;
+  }
+
+  const run = (async () => {
+    const startedAt = Date.now();
+    installLastErrors.delete(resolvedPath);
+    activeInstalls.set(resolvedPath, { startedAt });
+
+    try {
+      await copyNodeModulesToProject(resolvedPath);
+      if (!checkDependencies(resolvedPath, true)) {
+        throw new Error(
+          "После копирования vite не найден. В папке проекта выполните: npm install"
+        );
+      }
+      const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+      console.log(
+        `[preview] Зависимости готовы за ${elapsed} с: ${resolvedPath}`
+      );
+      installLastErrors.delete(resolvedPath);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Не удалось скопировать зависимости";
+      installLastErrors.set(resolvedPath, msg);
+      throw err instanceof Error ? err : new Error(msg);
+    } finally {
+      activeInstalls.delete(resolvedPath);
     }
+  })();
 
-    console.log(`[preview] Installing dependencies for ${projectPath}...`);
-    const child = runNpmCli(["install"], {
-      cwd: projectPath,
-      stdio: "inherit",
-      env: { ...process.env, NODE_ENV: "development" },
-    });
-
-    child.on("error", reject);
-    child.on("exit", (code: number | null) => {
-      if (code === 0) resolve();
-      else reject(new Error("npm install завершился с ошибкой"));
-    });
+  installChains.set(resolvedPath, run);
+  return run.finally(() => {
+    if (installChains.get(resolvedPath) === run) {
+      installChains.delete(resolvedPath);
+    }
   });
+};
+
+/** Сброс фонового копирования node_modules перед удалением проекта. */
+export const releaseProjectFileLocks = (projectPath: string): void => {
+  const resolvedPath = path.resolve(projectPath);
+  activeInstalls.delete(resolvedPath);
+  installChains.delete(resolvedPath);
+  installLastErrors.delete(resolvedPath);
+};
 
 /**
  * Остановить текущее превью
@@ -329,6 +397,11 @@ export const stopPreviewForProject = async (
   await new Promise((r) => setTimeout(r, 600));
 };
 
+/** Освободить порт preview (5173), если Vite остался после сбоя. */
+export const freePreviewPort = async (): Promise<void> => {
+  await killProcessByPort(PREVIEW_PORT);
+};
+
 /**
  * Убить процесс по порту (дополнительная мера безопасности)
  */
@@ -457,6 +530,8 @@ export const startPreview = async (
     `[preview] Starting preview for project: ${projectName} at ${projectPath}`
   );
 
+  ensureSharedProjectFiles(projectPath);
+
   // Останавливаем предыдущее превью (если запущено)
   if (activePreview) {
     console.log(
@@ -482,10 +557,7 @@ export const startPreview = async (
     }
   }
 
-  // Проверяем и устанавливаем зависимости
-  const dependenciesInstalled = checkDependencies(projectPath, true);
-  if (!dependenciesInstalled) {
-    console.log(`[preview] Dependencies not installed, installing...`);
+  if (!checkDependencies(projectPath, false)) {
     await installDependencies(projectPath);
   }
 

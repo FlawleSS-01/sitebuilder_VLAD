@@ -1,6 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { parseResponseJson } from "../utils/api";
+import { buildApiUrl, fetchJson, parseResponseJson } from "../utils/api";
+import { FALLBACK_GEO_PRESETS } from "../constants/createProjectFallback";
+import {
+  CUSTOM_GEO,
+  countryFromGeoSelection,
+  geoOptionLabel,
+  resolveEditGeoFromProject,
+  type GeoPresetRow,
+} from "../utils/projectGeo";
 import GeneratePagesModal from "../components/GeneratePagesModal";
 import RegeneratePageModal from "../components/RegeneratePageModal";
 import CustomPageModal from "../components/CustomPageModal";
@@ -10,6 +18,8 @@ import ImageModal from "../components/ImageModal";
 import EditPageModal from "../components/EditPageModal";
 import FaviconModal from "../components/FaviconModal";
 import ThemeModal from "../components/ThemeModal";
+import AutoGenerationOverlay from "../components/AutoGenerationOverlay";
+import GenerationCostPanel from "../components/GenerationCostPanel";
 import "./ProjectDetails.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
@@ -42,7 +52,7 @@ interface ProjectSettings {
     link?: string | null;
   };
   googleHtml?: {
-    accountName: string;
+    accountName?: string;
     fileNames?: string[];
     /** legacy */
     fileName?: string;
@@ -50,6 +60,12 @@ interface ProjectSettings {
   heroButtons?: {
     button1Text?: string;
     button2Text?: string;
+  };
+  serverUpload?: {
+    host: string;
+    port: number;
+    username: string;
+    remotePath?: string;
   };
   pages?: Record<
     string,
@@ -79,6 +95,25 @@ interface ProjectSettings {
     name: string;
     sizes: { image1: string; image2: string; image3: string };
   }>;
+  autoGeneration?: {
+    mode?: "manual" | "auto";
+    status?: "pending" | "running" | "done" | "error";
+    currentStep?: string | null;
+    steps?: Array<{
+      key: string;
+      label: string;
+      status: string;
+      error?: string;
+    }>;
+    error?: string;
+    cost?: {
+      text: number;
+      images: number;
+      favicon: number;
+      other: number;
+      total: number;
+    };
+  };
 }
 
 type PageType =
@@ -129,8 +164,21 @@ const ProjectDetails: React.FC = () => {
   const [regeneratePageType, setRegeneratePageType] = useState<string | null>(
     null
   );
+  /** Ключ страницы или `${pageType}-${imageIndex}` для одной картинки */
   const [generatingImages, setGeneratingImages] = useState<string | null>(null);
+  const [generatingPageImages, setGeneratingPageImages] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [queuedPageImages, setQueuedPageImages] = useState<Set<string>>(
+    () => new Set()
+  );
   const [generatingAllImages, setGeneratingAllImages] = useState(false);
+  const [allImagesProgress, setAllImagesProgress] = useState<{
+    current: number;
+    total: number;
+    pageType: string;
+  } | null>(null);
+  const pageImageGenQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [customPromptImage, setCustomPromptImage] = useState<{
     pageType: string;
     pageInfo: any;
@@ -153,6 +201,8 @@ const ProjectDetails: React.FC = () => {
     port: number;
   } | null>(null);
   const [dependenciesInstalled, setDependenciesInstalled] = useState(false);
+  const [installingDependencies, setInstallingDependencies] = useState(false);
+  const [npmInstallElapsed, setNpmInstallElapsed] = useState(0);
   const [savingWorkflow, setSavingWorkflow] = useState(false);
   const [startingPreview, setStartingPreview] = useState(false);
   const [stoppingPreview, setStoppingPreview] = useState(false);
@@ -160,16 +210,24 @@ const ProjectDetails: React.FC = () => {
   const [uploadingApp, setUploadingApp] = useState(false);
   const [removingApp, setRemovingApp] = useState(false);
   const [appLinkInput, setAppLinkInput] = useState("");
-  const [googleAccounts, setGoogleAccounts] = useState<string[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<string>("");
-  const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [uploadingHtml, setUploadingHtml] = useState(false);
+  const googleHtmlInputRef = useRef<HTMLInputElement>(null);
+  const [serverHost, setServerHost] = useState("");
+  const [serverUsername, setServerUsername] = useState("");
+  const [serverPassword, setServerPassword] = useState("");
+  const [serverPort, setServerPort] = useState("22");
+  const [serverRemotePath, setServerRemotePath] = useState("/");
+  const [uploadingToServer, setUploadingToServer] = useState(false);
   const [generatingLogo, setGeneratingLogo] = useState(false);
   const [button1Text, setButton1Text] = useState<string>("");
   const [button2Text, setButton2Text] = useState<string>("");
   const [savingButtons, setSavingButtons] = useState(false);
   const [htmlLangInput, setHtmlLangInput] = useState<string>("en");
   const [savingHtmlLang, setSavingHtmlLang] = useState(false);
+  const [geoPresets, setGeoPresets] = useState<GeoPresetRow[]>([]);
+  const [loadingGeoPresets, setLoadingGeoPresets] = useState(true);
+  const [editGeoSelect, setEditGeoSelect] = useState("");
+  const [editNoCountry, setEditNoCountry] = useState(false);
   const projectRef = useRef<ProjectSettings | null>(null);
   projectRef.current = project;
 
@@ -177,9 +235,39 @@ const ProjectDetails: React.FC = () => {
     if (projectName) {
       loadProject();
       loadPreviewStatus();
-      loadGoogleAccounts();
     }
   }, [projectName]);
+
+  useEffect(() => {
+    const loadGeoPresets = async () => {
+      setLoadingGeoPresets(true);
+      try {
+        const r = await fetch(`${API_URL}/api/build/geo-presets`);
+        const j = await r.json();
+        if (r.ok && j.success && Array.isArray(j.data) && j.data.length > 0) {
+          setGeoPresets(j.data as GeoPresetRow[]);
+        } else {
+          setGeoPresets(FALLBACK_GEO_PRESETS);
+        }
+      } catch {
+        setGeoPresets(FALLBACK_GEO_PRESETS);
+      } finally {
+        setLoadingGeoPresets(false);
+      }
+    };
+    loadGeoPresets();
+  }, []);
+
+  useEffect(() => {
+    if (
+      isEditing &&
+      project &&
+      geoPresets.length > 0 &&
+      editGeoSelect === ""
+    ) {
+      applyEditGeoFromProject(project);
+    }
+  }, [isEditing, project, geoPresets, editGeoSelect]);
 
   // Периодически проверяем статус превью
   useEffect(() => {
@@ -190,6 +278,62 @@ const ProjectDetails: React.FC = () => {
     }, 3000); // Проверяем каждые 3 секунды
 
     return () => clearInterval(interval);
+  }, [projectName]);
+
+  // Poll auto-generation progress only while pipeline may be active
+  useEffect(() => {
+    if (!projectName) return;
+
+    let stopped = false;
+    let interval: ReturnType<typeof setInterval> | undefined;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/api/build/project/${encodeURIComponent(projectName)}/auto-status`
+        );
+        const data = await res.json();
+        if (stopped || !res.ok || !data.autoGeneration) return;
+        if (data.autoGeneration.mode !== "auto") {
+          stopped = true;
+          if (interval) clearInterval(interval);
+          return;
+        }
+
+        const status = data.autoGeneration.status as string;
+        if (
+          status !== "pending" &&
+          status !== "running" &&
+          status !== "done" &&
+          status !== "error"
+        ) {
+          return;
+        }
+
+        setProject((prev) =>
+          prev
+            ? { ...prev, autoGeneration: data.autoGeneration }
+            : ({
+                autoGeneration: data.autoGeneration,
+              } as ProjectSettings)
+        );
+
+        if (status === "done" || status === "error") {
+          stopped = true;
+          if (interval) clearInterval(interval);
+          await loadProject();
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    poll();
+    interval = setInterval(poll, 2500);
+    return () => {
+      stopped = true;
+      if (interval) clearInterval(interval);
+    };
   }, [projectName]);
 
   const loadProject = async () => {
@@ -211,6 +355,13 @@ const ProjectDetails: React.FC = () => {
       setHtmlLangInput(updatedProject.htmlLang || "en");
       setButton1Text(updatedProject.heroButtons?.button1Text || "");
       setButton2Text(updatedProject.heroButtons?.button2Text || "");
+      const su = updatedProject.serverUpload;
+      if (su) {
+        setServerHost(su.host || "");
+        setServerUsername(su.username || "");
+        setServerPort(String(su.port ?? 22));
+        setServerRemotePath(su.remotePath || "/");
+      }
       setEditData({
         brand: updatedProject.brand,
         language: updatedProject.language,
@@ -261,6 +412,12 @@ const ProjectDetails: React.FC = () => {
         const data = await response.json();
         setPreviewRunning(data.running);
         setDependenciesInstalled(data.dependenciesInstalled || false);
+        if (data.npmInstall?.installing) {
+          setInstallingDependencies(true);
+          setNpmInstallElapsed(data.npmInstall.elapsedSeconds || 0);
+        } else if (!data.npmInstall?.installing && data.dependenciesInstalled) {
+          setInstallingDependencies(false);
+        }
         if (data.info) {
           setPreviewInfo({
             projectName: data.info.projectName,
@@ -273,6 +430,110 @@ const ProjectDetails: React.FC = () => {
       }
     } catch (err) {
       console.error("Error loading preview status:", err);
+    }
+  };
+
+  /** Если preview уже запущен для этого проекта — stop/start, чтобы Vite подхватил изменения блоков. */
+  const restartPreviewIfRunningForProject = async () => {
+    if (!projectName) return;
+    try {
+      const statusRes = await fetch(
+        `${API_URL}/api/preview/status/${projectName}`
+      );
+      if (!statusRes.ok) return;
+      const statusData = await statusRes.json();
+      if (!statusData.running) return;
+
+      await fetch(`${API_URL}/api/preview/stop`, { method: "POST" });
+      const startRes = await fetch(
+        `${API_URL}/api/preview/start/${projectName}`,
+        { method: "POST" }
+      );
+      const startData = await startRes.json();
+      if (!startRes.ok) {
+        console.warn("[preview] Перезапуск не удался:", startData.error);
+        await loadPreviewStatus();
+        return;
+      }
+      await loadPreviewStatus();
+    } catch (e) {
+      console.warn("[preview] Перезапуск preview:", e);
+    }
+  };
+
+  const pollNpmInstallUntilDone = async (): Promise<void> => {
+    if (!projectName) return;
+
+    const maxWaitMs = 26 * 60 * 1000;
+    const started = Date.now();
+
+    while (Date.now() - started < maxWaitMs) {
+      const stRes = await fetch(
+        `${API_URL}/api/preview/npm-install-status/${encodeURIComponent(projectName)}`
+      );
+      const st = await parseResponseJson(stRes);
+
+      if (st.elapsedSeconds != null) {
+        setNpmInstallElapsed(st.elapsedSeconds);
+      }
+
+      if (st.dependenciesInstalled) {
+        setDependenciesInstalled(true);
+        return;
+      }
+
+      if (!st.installing) {
+        if (st.lastError) {
+          throw new Error(st.lastError);
+        }
+        if (!st.dependenciesInstalled) {
+          throw new Error(
+            "npm install завершился, но vite не найден. Запустите в папке проекта: npm install"
+          );
+        }
+        return;
+      }
+
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+
+    throw new Error(
+      "Таймаут ожидания npm. Откройте терминал в папке проекта и выполните: npm install"
+    );
+  };
+
+  const handleInstallDependencies = async () => {
+    if (!projectName || dependenciesInstalled) return;
+
+    try {
+      setInstallingDependencies(true);
+      setNpmInstallElapsed(0);
+      setError(null);
+
+      const response = await fetch(
+        `${API_URL}/api/preview/install-deps/${encodeURIComponent(projectName)}`,
+        { method: "POST" }
+      );
+      const data = await parseResponseJson(response);
+      if (!response.ok) {
+        throw new Error(data.message || data.error || "Не удалось установить зависимости");
+      }
+
+      if (data.alreadyInstalled) {
+        setDependenciesInstalled(true);
+        await loadPreviewStatus();
+        return;
+      }
+
+      await pollNpmInstallUntilDone();
+      await loadPreviewStatus();
+      alert("Зависимости установлены. Теперь можно запустить preview.");
+    } catch (err: any) {
+      setError(err.message || "Ошибка установки зависимостей");
+      alert(err.message || "Ошибка установки зависимостей");
+    } finally {
+      setInstallingDependencies(false);
+      setNpmInstallElapsed(0);
     }
   };
 
@@ -488,7 +749,17 @@ const ProjectDetails: React.FC = () => {
     return "Not viewed";
   };
 
+  const applyEditGeoFromProject = (p: ProjectSettings) => {
+    if (geoPresets.length === 0) return;
+    const { noCountry, geoSelect } = resolveEditGeoFromProject(p, geoPresets);
+    setEditNoCountry(noCountry);
+    setEditGeoSelect(geoSelect);
+  };
+
   const handleEdit = () => {
+    if (project) {
+      applyEditGeoFromProject(project);
+    }
     setIsEditing(true);
   };
 
@@ -503,6 +774,24 @@ const ProjectDetails: React.FC = () => {
         domain: project.domain,
         affiliateLink: project.affiliateLink,
       });
+      applyEditGeoFromProject(project);
+    }
+  };
+
+  const handleEditNoCountryChange = (checked: boolean) => {
+    setEditNoCountry(checked);
+    if (checked) {
+      setEditGeoSelect("MULTI");
+      setEditData((prev) => ({ ...prev, country: "NO COUNTRY" }));
+    }
+  };
+
+  const handleEditGeoSelectChange = (value: string) => {
+    setEditGeoSelect(value);
+    if (value === CUSTOM_GEO) return;
+    const row = geoPresets.find((g) => g.geoCode === value);
+    if (row) {
+      setEditData((prev) => ({ ...prev, country: row.geoLabel }));
     }
   };
 
@@ -518,11 +807,37 @@ const ProjectDetails: React.FC = () => {
   const handleSave = async () => {
     if (!projectName) return;
 
+    if (loadingGeoPresets || geoPresets.length === 0) {
+      setError("Дождитесь загрузки списка GEO");
+      return;
+    }
+
+    const geoFields = countryFromGeoSelection(
+      editNoCountry,
+      editGeoSelect,
+      geoPresets,
+      editData.country || ""
+    );
+
+    if (!editNoCountry && !editGeoSelect) {
+      setError("Выберите GEO из списка");
+      return;
+    }
+
+    if (
+      !editNoCountry &&
+      editGeoSelect === CUSTOM_GEO &&
+      !geoFields.country.trim()
+    ) {
+      setError("Укажите метку региона для «Другой / вручную»");
+      return;
+    }
+
     // Валидация
     if (
       !editData.brand ||
       !editData.language ||
-      !editData.country ||
+      !geoFields.country ||
       !editData.domain ||
       !editData.affiliateLink
     ) {
@@ -564,7 +879,9 @@ const ProjectDetails: React.FC = () => {
           body: JSON.stringify({
             brand: editData.brand,
             language: editData.language,
-            country: editData.country,
+            country: geoFields.country,
+            geoCode: geoFields.geoCode,
+            geoLabel: geoFields.geoLabel,
             domain: editData.domain,
             affiliateLink: editData.affiliateLink,
           }),
@@ -751,58 +1068,122 @@ const ProjectDetails: React.FC = () => {
     }
   };
 
-  const loadGoogleAccounts = async () => {
-    try {
-      setLoadingAccounts(true);
-      const response = await fetch(`${API_URL}/api/build/google-accounts`);
-      const data = await response.json();
+  const handleGoogleHtmlFilePick = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!projectName) return;
 
-      if (!response.ok) {
-        throw new Error(data.error || "Не удалось загрузить список аккаунтов");
-      }
+    const picked = e.target.files;
+    if (!picked?.length) return;
 
-      setGoogleAccounts(data.accounts || []);
-    } catch (err: any) {
-      console.error("Error loading google accounts:", err);
-    } finally {
-      setLoadingAccounts(false);
-    }
-  };
-
-  const handleUploadGoogleHtml = async () => {
-    if (!projectName || !selectedAccount) {
-      alert("Выберите аккаунт");
+    const htmlFiles = Array.from(picked).filter((f) =>
+      f.name.toLowerCase().endsWith(".html")
+    );
+    if (htmlFiles.length === 0) {
+      alert("Выберите файлы с расширением .html");
+      e.target.value = "";
       return;
     }
+
+    const formData = new FormData();
+    htmlFiles.forEach((file) => formData.append("files", file));
 
     try {
       setUploadingHtml(true);
       const response = await fetch(
-        `${API_URL}/api/build/project/${projectName}/google-html`,
+        buildApiUrl(
+          `/api/build/project/${encodeURIComponent(projectName)}/google-html`
+        ),
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            accountName: selectedAccount,
-          }),
+          body: formData,
         }
       );
-      const data = await response.json();
+      const data = await parseResponseJson(response);
 
       if (!response.ok) {
-        throw new Error(data.error || "Не удалось загрузить HTML файл");
+        throw new Error(data.error || data.message || "Не удалось загрузить HTML");
       }
 
-      setSelectedAccount("");
       await loadProject();
-      alert(data.message || "HTML файлы успешно загружены в public проекта");
+      alert(data.message || "HTML файлы загружены в public проекта");
     } catch (err: any) {
       alert(err.message || "Произошла ошибка при загрузке HTML файла");
     } finally {
       setUploadingHtml(false);
+      e.target.value = "";
     }
+  };
+
+  const handleUploadToServer = async () => {
+    if (!projectName) return;
+
+    const host = serverHost.trim();
+    const username = serverUsername.trim();
+    if (!host) {
+      alert("Укажите хост сервера");
+      return;
+    }
+    if (!username) {
+      alert("Укажите имя пользователя");
+      return;
+    }
+    if (!serverPassword) {
+      alert("Укажите пароль");
+      return;
+    }
+
+    const portNum = parseInt(serverPort, 10);
+    if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) {
+      alert("Порт должен быть от 1 до 65535");
+      return;
+    }
+
+    if (project?.askBeforeBuild !== false) {
+      const ok = window.confirm(
+        `Загрузить production-сборку (dist) на ${host}:${portNum}? Это может занять несколько минут.`
+      );
+      if (!ok) return;
+    }
+
+    try {
+      setUploadingToServer(true);
+      const { response, data } = await fetchJson(
+        `/api/build/project/${encodeURIComponent(projectName)}/upload-to-server`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            host,
+            port: portNum,
+            username,
+            password: serverPassword,
+            remotePath: serverRemotePath.trim() || "/",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || data.error || "Не удалось загрузить на сервер"
+        );
+      }
+
+      await loadProject();
+      alert(data.message || "Сайт загружен на сервер");
+    } catch (err: any) {
+      alert(err.message || "Ошибка при загрузке на сервер");
+    } finally {
+      setUploadingToServer(false);
+    }
+  };
+
+  const handleArchiveProject = () => {
+    if (!projectName) return;
+    confirmAndDownload(
+      `${API_URL}/api/build/download-dist/${encodeURIComponent(projectName)}`,
+      "архив проекта (ZIP)"
+    );
   };
 
   const handleSaveHeroButtons = async () => {
@@ -849,36 +1230,15 @@ const ProjectDetails: React.FC = () => {
     });
   };
 
-  const handleGenerateImages = async (pageType: string, pageInfo: any) => {
+  const generateImagesForPage = async (
+    pageType: string,
+    pageInfo: any
+  ): Promise<void> => {
     if (!projectName) return;
 
-    setGeneratingImages(pageType);
-
-    try {
-      const response = await fetch(
-        `${API_URL}/api/image-generation/generate-page-images`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectName: projectName,
-            pageType: pageType,
-            pageName: pageInfo.pageName,
-            isCustom: pageInfo.isCustom || false,
-          }),
-        }
-      );
-
-      const data = await parseResponseJson(response);
-
-      if (!response.ok) {
-        throw new Error(data.error || "Ошибка при генерации картинок");
-      }
-
-      // Сохраняем информацию о картинках в проект
-      const saveResponse = await fetch(`${API_URL}/api/build/save-images`, {
+    const response = await fetch(
+      `${API_URL}/api/image-generation/generate-page-images`,
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -886,26 +1246,75 @@ const ProjectDetails: React.FC = () => {
         body: JSON.stringify({
           projectName: projectName,
           pageType: pageType,
-          images: data.data.images,
+          pageName: pageInfo.pageName,
+          isCustom: pageInfo.isCustom || false,
         }),
-      });
-
-      const saveData = await parseResponseJson(saveResponse);
-
-      if (!saveResponse.ok) {
-        throw new Error(saveData.error || "Не удалось сохранить картинки");
       }
+    );
 
-      // Обновляем версию изображений для cache-busting
-      setImageVersion(Date.now());
-      // Перезагружаем проект
-      loadProject();
-    } catch (err: any) {
-      console.error("Error:", err);
-      alert(err.message || "Произошла ошибка при генерации картинок");
-    } finally {
-      setGeneratingImages(null);
+    const data = await parseResponseJson(response);
+
+    if (!response.ok) {
+      throw new Error(
+        data.message || data.error || `Ошибка при генерации картинок (HTTP ${response.status})`
+      );
     }
+
+    const saveResponse = await fetch(`${API_URL}/api/build/save-images`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        projectName: projectName,
+        pageType: pageType,
+        images: data.data.images,
+      }),
+    });
+
+    const saveData = await parseResponseJson(saveResponse);
+
+    if (!saveResponse.ok) {
+      throw new Error(
+        saveData.message || saveData.error || "Не удалось сохранить картинки"
+      );
+    }
+  };
+
+  const handleGenerateImages = (pageType: string, pageInfo: any) => {
+    if (!projectName || generatingAllImages) return;
+
+    setQueuedPageImages((prev) => new Set(prev).add(pageType));
+
+    pageImageGenQueueRef.current = pageImageGenQueueRef.current
+      .then(async () => {
+        setQueuedPageImages((prev) => {
+          const next = new Set(prev);
+          next.delete(pageType);
+          return next;
+        });
+        setGeneratingPageImages((prev) => new Set(prev).add(pageType));
+
+        try {
+          await generateImagesForPage(pageType, pageInfo);
+          await loadProject();
+          setImageVersion(Date.now());
+        } catch (err: any) {
+          console.error("Error:", err);
+          alert(
+            `${PAGE_NAMES[pageType] || pageType}: ${
+              err.message || "Ошибка при генерации картинок"
+            }`
+          );
+        } finally {
+          setGeneratingPageImages((prev) => {
+            const next = new Set(prev);
+            next.delete(pageType);
+            return next;
+          });
+        }
+      })
+      .catch(() => {});
   };
 
   const handleRegenerateSingleImage = async (
@@ -990,8 +1399,8 @@ const ProjectDetails: React.FC = () => {
         });
       }
 
-      // Перезагружаем проект
-      await loadProject();
+      // Перезагружаем страницу админки — данные проекта подтянутся заново
+      window.location.reload();
     } catch (err: any) {
       console.error("Error:", err);
       alert(err.message || "Произошла ошибка при перегенерации картинки");
@@ -1081,8 +1490,8 @@ const ProjectDetails: React.FC = () => {
 
       // Обновляем версию изображений для cache-busting
       setImageVersion(Date.now());
-      // Перезагружаем проект
-      await loadProject();
+      // Перезагружаем страницу админки — данные проекта подтянутся заново
+      window.location.reload();
     } catch (err: any) {
       console.error("Error:", err);
       alert(err.message || "Произошла ошибка при загрузке картинки");
@@ -1093,53 +1502,101 @@ const ProjectDetails: React.FC = () => {
     if (!projectName || !project) return;
 
     setGeneratingAllImages(true);
+    setAllImagesProgress(null);
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/image-generation/generate-all-project-images`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ projectName }),
-        }
+      const jobsRes = await fetchJson(
+        `/api/image-generation/image-jobs/${encodeURIComponent(projectName)}`
       );
 
-      const data = await parseResponseJson(response);
-
-      if (!response.ok) {
+      if (!jobsRes.response.ok) {
         throw new Error(
-          data.error ||
-            data.message ||
-            "Ошибка при массовой генерации картинок"
+          jobsRes.data.message ||
+            jobsRes.data.error ||
+            "Не удалось получить список страниц"
         );
       }
 
-      const results = (data.data?.results || []) as Array<{
+      const jobs = (jobsRes.data.data?.jobs || []) as Array<{
         pageType: string;
-        success: boolean;
-        error?: string;
+        pageName?: string;
+        isCustom?: boolean;
       }>;
-      const failed = results.filter((r) => !r.success);
+
+      if (jobs.length === 0) {
+        alert(
+          "Нет страниц для генерации картинок. Сначала сгенерируйте тексты страниц."
+        );
+        return;
+      }
+
+      const failed: string[] = [];
+      let successCount = 0;
+
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        setAllImagesProgress({
+          current: i + 1,
+          total: jobs.length,
+          pageType: job.pageType,
+        });
+        setGeneratingPageImages((prev) => new Set(prev).add(job.pageType));
+
+        const pageInfo = {
+          ...(project.pages?.[job.pageType] || {
+            pageType: job.pageType,
+            blocks: [],
+            generated: true,
+          }),
+          pageName: job.pageName ?? project.pages?.[job.pageType]?.pageName,
+          isCustom: job.isCustom ?? project.pages?.[job.pageType]?.isCustom,
+        };
+
+        try {
+          await generateImagesForPage(job.pageType, pageInfo);
+          successCount++;
+        } catch (err: any) {
+          console.error(`[generate-all] ${job.pageType}:`, err);
+          failed.push(job.pageType);
+        } finally {
+          setGeneratingPageImages((prev) => {
+            const next = new Set(prev);
+            next.delete(job.pageType);
+            return next;
+          });
+        }
+      }
+
+      await loadProject();
+      setImageVersion(Date.now());
 
       if (failed.length > 0) {
-        const failedPages = failed.map((r) => r.pageType).join(", ");
         alert(
-          `Не удалось сгенерировать картинки для страниц: ${failedPages}. Проверьте консоль для деталей.`
+          `Готово ${successCount} из ${jobs.length}. Ошибки: ${failed
+            .map((p) => PAGE_NAMES[p] || p)
+            .join(", ")}`
         );
       } else {
-        alert("Картинки успешно сгенерированы для всех страниц!");
+        alert(`Картинки сгенерированы для всех страниц (${jobs.length}).`);
       }
-
-      setImageVersion(Date.now());
-      await loadProject();
     } catch (err: any) {
       console.error("Error:", err);
       alert(err.message || "Произошла ошибка при генерации картинок");
     } finally {
       setGeneratingAllImages(false);
+      setAllImagesProgress(null);
     }
+  };
+
+  const isPageImageBusy = (pageType: string) =>
+    generatingAllImages ||
+    generatingPageImages.has(pageType) ||
+    queuedPageImages.has(pageType);
+
+  const pageImageButtonLabel = (pageType: string) => {
+    if (generatingPageImages.has(pageType)) return "Генерация...";
+    if (queuedPageImages.has(pageType)) return "В очереди...";
+    return "🖼️ Сгенерировать";
   };
 
   const handleRegenerateAltTitle = async (
@@ -1208,20 +1665,7 @@ const ProjectDetails: React.FC = () => {
         throw new Error(saveData.error || "Не удалось сохранить alt/title");
       }
 
-      // Перезагружаем проект
-      await loadProject();
-
-      // Обновляем выбранное изображение в модальном окне
-      if (
-        selectedImage &&
-        selectedImage.pageType === pageType &&
-        selectedImage.imageIndex === imageIndex
-      ) {
-        setSelectedImage({
-          ...selectedImage,
-          image: updatedImages[imageIndex],
-        });
-      }
+      window.location.reload();
     } catch (err: any) {
       console.error("Error:", err);
       alert(err.message || "Произошла ошибка при перегенерации alt/title");
@@ -1247,8 +1691,10 @@ const ProjectDetails: React.FC = () => {
       }
       setImageVersion(Date.now());
       setLogoUrl(`${data.data.logo.url}?t=${Date.now()}`);
-      alert("Логотип сгенерирован и сохранён как logo.webp");
-      await loadProject();
+      alert(
+        "Логотип сохранён как logo.webp. Favicon сгенерирован из логотипа, в index.html добавлены ссылки /favicon/…"
+      );
+      window.location.reload();
     } catch (err: any) {
       console.error(err);
       alert(err.message || "Ошибка генерации логотипа");
@@ -1287,7 +1733,9 @@ const ProjectDetails: React.FC = () => {
       // Обновляем URL логотипа с timestamp для обновления кеша
       setLogoUrl(`${data.data.logo.url}?t=${Date.now()}`);
 
-      alert("Логотип успешно загружен!");
+      alert(
+        "Логотип загружен. Favicon пересоздан из логотипа, обновлены ссылки в index.html."
+      );
     } catch (err: any) {
       console.error("Error:", err);
       alert(err.message || "Произошла ошибка при загрузке логотипа");
@@ -1335,20 +1783,7 @@ const ProjectDetails: React.FC = () => {
         throw new Error(saveData.error || "Не удалось сохранить alt/title");
       }
 
-      // Перезагружаем проект
-      await loadProject();
-
-      // Обновляем выбранное изображение в модальном окне
-      if (
-        selectedImage &&
-        selectedImage.pageType === pageType &&
-        selectedImage.imageIndex === imageIndex
-      ) {
-        setSelectedImage({
-          ...selectedImage,
-          image: updatedImages[imageIndex],
-        });
-      }
+      window.location.reload();
     } catch (err: any) {
       console.error("Error:", err);
       alert(err.message || "Произошла ошибка при сохранении alt/title");
@@ -1390,6 +1825,49 @@ const ProjectDetails: React.FC = () => {
 
   return (
     <div className="project-details-container">
+      {project.autoGeneration?.mode === "auto" &&
+        (project.autoGeneration.status === "running" ||
+          project.autoGeneration.status === "pending") && (
+          <AutoGenerationOverlay
+            steps={
+              (project.autoGeneration.steps || []).map((s) => ({
+                key: s.key,
+                label: s.label,
+                status: s.status as
+                  | "pending"
+                  | "running"
+                  | "done"
+                  | "error"
+                  | "skipped",
+                error: s.error,
+              }))
+            }
+            status={
+              project.autoGeneration.status === "pending"
+                ? "pending"
+                : "running"
+            }
+            error={project.autoGeneration.error}
+            cost={project.autoGeneration.cost}
+          />
+        )}
+
+      {project.autoGeneration?.mode === "auto" &&
+        project.autoGeneration.status === "error" && (
+          <div className="auto-gen-error" style={{ margin: "16px 0" }}>
+            <strong>Автогенерация завершилась с ошибкой:</strong>{" "}
+            {project.autoGeneration.error || "Неизвестная ошибка"}
+            {project.autoGeneration.cost && (
+              <div style={{ marginTop: "12px" }}>
+                <GenerationCostPanel
+                  cost={project.autoGeneration.cost}
+                  title="Расходы до ошибки"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
       <div className="project-header">
         <button onClick={() => navigate("/projects")} className="back-button">
           ← Назад
@@ -1433,6 +1911,27 @@ const ProjectDetails: React.FC = () => {
             </div>
           )}
         </div>
+
+        {project.autoGeneration?.mode === "auto" &&
+          (project.autoGeneration.status === "done" ||
+            project.autoGeneration.status === "error") && (
+            <GenerationCostPanel
+              cost={
+                project.autoGeneration.cost ?? {
+                  text: 0,
+                  images: 0,
+                  favicon: 0,
+                  other: 0,
+                  total: 0,
+                }
+              }
+              hint={
+                project.autoGeneration.cost
+                  ? `Детальный лог расходов: projects/${project.projectName}/auto-generation.log`
+                  : "Оценка стоимости не сохранилась (проект создан до обновления). Перезапустите автогенерацию или смотрите auto-generation.log."
+              }
+            />
+          )}
 
         {error && isEditing && (
           <div className="error-message" style={{ marginBottom: "10px" }}>
@@ -1478,17 +1977,76 @@ const ProjectDetails: React.FC = () => {
             )}
           </div>
 
-          <div className="info-row">
-            <span className="info-label">Страна:</span>
+          <div
+            className="info-row"
+            style={
+              isEditing
+                ? {
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    gap: "8px",
+                  }
+                : undefined
+            }
+          >
+            <span className="info-label">Страна / GEO:</span>
             {isEditing ? (
-              <input
-                type="text"
-                className="info-input"
-                value={editData.country || ""}
-                onChange={(e) => handleInputChange("country", e.target.value)}
-              />
+              <>
+                <label style={{ fontSize: "13px", display: "flex", gap: "8px" }}>
+                  <input
+                    type="checkbox"
+                    checked={editNoCountry}
+                    onChange={(e) =>
+                      handleEditNoCountryChange(e.target.checked)
+                    }
+                  />
+                  NO COUNTRY (Multi-GEO)
+                </label>
+                {!editNoCountry && (
+                  <select
+                    className="info-input"
+                    style={{ width: "100%", maxWidth: "420px" }}
+                    value={loadingGeoPresets ? "" : editGeoSelect}
+                    onChange={(e) =>
+                      handleEditGeoSelectChange(e.target.value)
+                    }
+                    disabled={loadingGeoPresets}
+                  >
+                    {loadingGeoPresets ? (
+                      <option value="">Загрузка GEO…</option>
+                    ) : (
+                      <>
+                        {geoPresets.map((g) => (
+                          <option key={g.geoCode} value={g.geoCode}>
+                            {geoOptionLabel(g)}
+                          </option>
+                        ))}
+                        <option value={CUSTOM_GEO}>Другой / вручную</option>
+                      </>
+                    )}
+                  </select>
+                )}
+                {!editNoCountry && editGeoSelect === CUSTOM_GEO && (
+                  <input
+                    type="text"
+                    className="info-input"
+                    style={{ width: "100%", maxWidth: "420px" }}
+                    value={editData.country || ""}
+                    onChange={(e) =>
+                      handleInputChange("country", e.target.value)
+                    }
+                    placeholder="Название региона"
+                  />
+                )}
+              </>
             ) : (
-              <span className="info-value">{project.country}</span>
+              <span className="info-value">
+                {project.country === "NO COUNTRY"
+                  ? "NO COUNTRY (Multi-GEO)"
+                  : [project.geoCode, project.geoLabel]
+                      .filter(Boolean)
+                      .join(" — ") || project.country}
+              </span>
             )}
           </div>
 
@@ -1652,9 +2210,13 @@ const ProjectDetails: React.FC = () => {
                 type="button"
                 className="btn secondary-btn"
                 onClick={handleStartPreview}
-                disabled={startingPreview}
+                disabled={startingPreview || installingDependencies}
               >
-                Open Preview
+                {startingPreview
+                  ? dependenciesInstalled
+                    ? "Запуск…"
+                    : "npm + запуск…"
+                  : "Open Preview"}
               </button>
               <button
                 type="button"
@@ -2028,35 +2590,35 @@ const ProjectDetails: React.FC = () => {
                 <span
                   className="info-value"
                   style={{
-                    color: project.googleHtml?.accountName ? "#28a745" : "#999",
+                    color:
+                      project.googleHtml?.fileNames?.length ||
+                      project.googleHtml?.fileName
+                        ? "#28a745"
+                        : "#999",
                   }}
                 >
-                  Папка (аккаунт):{" "}
-                  {project.googleHtml?.accountName
-                    ? project.googleHtml.accountName
-                    : "не выбрана"}
+                  {project.googleHtml?.fileNames?.length ||
+                  project.googleHtml?.fileName
+                    ? "Файлы загружены"
+                    : "Файлы не загружены"}
                 </span>
-                <select
-                  className="info-input"
-                  value={selectedAccount}
-                  onChange={(e) => setSelectedAccount(e.target.value)}
-                  disabled={loadingAccounts || uploadingHtml}
-                  style={{ minWidth: "200px" }}
-                >
-                  <option value="">Выберите папку</option>
-                  {googleAccounts.map((account) => (
-                    <option key={account} value={account}>
-                      {account}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  ref={googleHtmlInputRef}
+                  type="file"
+                  accept=".html,text/html"
+                  multiple
+                  onChange={handleGoogleHtmlFilePick}
+                  disabled={uploadingHtml}
+                  style={{ display: "none" }}
+                />
                 <button
+                  type="button"
                   className="save-button"
-                  onClick={handleUploadGoogleHtml}
-                  disabled={!selectedAccount || loadingAccounts || uploadingHtml}
-                  title="Копирует все .html из modules/google-accounts/&lt;папка&gt; в public проекта"
+                  onClick={() => googleHtmlInputRef.current?.click()}
+                  disabled={uploadingHtml}
+                  title="Открыть стандартный выбор файлов (.html) и загрузить в public проекта"
                 >
-                  {uploadingHtml ? "Копирование..." : "Загрузить все .html"}
+                  {uploadingHtml ? "Загрузка..." : "Выбрать HTML"}
                 </button>
               </div>
               {(project.googleHtml?.fileNames?.length ||
@@ -2072,10 +2634,9 @@ const ProjectDetails: React.FC = () => {
                 </small>
               )}
               <small style={{ color: "#666" }}>
-                Положите все файлы верификации (например google*.html) в одну
-                подпапку в{" "}
-                <code>modules/google-accounts/&lt;имя&gt;/</code> — при загрузке
-                они все копируются в <code>public/</code> с теми же именами.
+                Нажмите «Выбрать HTML» — откроется стандартный диалог файлов.
+                Можно выбрать один или несколько .html; они сохраняются в{" "}
+                <code>public/</code> с исходными именами.
               </small>
             </div>
           </div>
@@ -2190,16 +2751,47 @@ const ProjectDetails: React.FC = () => {
           </div>
 
           <div className="info-row">
-            <span className="info-label">Зависимости:</span>
-            <span
-              className="info-value"
+            <span className="info-label">Зависимости (npm):</span>
+            <div
               style={{
-                color: dependenciesInstalled ? "#28a745" : "#dc3545",
-                fontWeight: "600",
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: "10px",
+                flex: 1,
               }}
             >
-              {dependenciesInstalled ? "✓ Установлены" : "✗ Не установлены"}
-            </span>
+              <span
+                className="info-value"
+                style={{
+                  color: dependenciesInstalled ? "#28a745" : "#dc3545",
+                  fontWeight: "600",
+                }}
+              >
+                {dependenciesInstalled ? "✓ Установлены" : "✗ Не установлены"}
+              </span>
+              {!dependenciesInstalled && (
+                <button
+                  type="button"
+                  className="save-button"
+                  onClick={handleInstallDependencies}
+                  disabled={installingDependencies || startingPreview}
+                  title="Скопировать node_modules из шаблона default-template (без npm)"
+                >
+                  {installingDependencies
+                    ? npmInstallElapsed > 0
+                      ? `Копирование… ${npmInstallElapsed} с`
+                      : "Копирование…"
+                    : "Скопировать зависимости"}
+                </button>
+              )}
+              {!dependenciesInstalled && (
+                <small style={{ color: "var(--ui-fg-muted)", fontSize: "12px" }}>
+                  Копируется из кэша шаблона (~1–3 мин). Либо в папке проекта:{" "}
+                  <code>npm install</code>
+                </small>
+              )}
+            </div>
           </div>
 
           <div className="info-row">
@@ -2241,11 +2833,118 @@ const ProjectDetails: React.FC = () => {
                 <button
                   onClick={handleStartPreview}
                   className="start-preview-button"
-                  disabled={startingPreview}
+                  disabled={startingPreview || installingDependencies}
                 >
-                  {startingPreview ? "Запуск..." : "Запустить"}
+                  {startingPreview
+                    ? dependenciesInstalled
+                      ? "Запуск Vite…"
+                      : "Копирование зависимостей…"
+                    : "Запустить"}
                 </button>
               )}
+            </div>
+          </div>
+
+          <div className="info-row server-upload-row">
+            <span className="info-label">Загрузка на сервер:</span>
+            <div className="server-upload-fields">
+              <div className="server-upload-credentials">
+                <label className="server-upload-field">
+                  <span className="server-upload-field-label">Хост:</span>
+                  <input
+                    type="text"
+                    className="info-input"
+                    value={serverHost}
+                    onChange={(e) => setServerHost(e.target.value)}
+                    placeholder="IP или host (например 10.10.10.5)"
+                    disabled={uploadingToServer}
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="server-upload-field">
+                  <span className="server-upload-field-label">Имя пользователя:</span>
+                  <input
+                    type="text"
+                    className="info-input"
+                    value={serverUsername}
+                    onChange={(e) => setServerUsername(e.target.value)}
+                    placeholder="username"
+                    disabled={uploadingToServer}
+                    autoComplete="username"
+                  />
+                </label>
+                <label className="server-upload-field">
+                  <span className="server-upload-field-label">Пароль:</span>
+                  <input
+                    type="password"
+                    className="info-input"
+                    value={serverPassword}
+                    onChange={(e) => setServerPassword(e.target.value)}
+                    placeholder="••••••••"
+                    disabled={uploadingToServer}
+                    autoComplete="current-password"
+                  />
+                </label>
+                <label className="server-upload-field server-upload-field--port">
+                  <span className="server-upload-field-label">Порт:</span>
+                  <input
+                    type="text"
+                    className="info-input"
+                    value={serverPort}
+                    onChange={(e) => setServerPort(e.target.value)}
+                    placeholder="22"
+                    disabled={uploadingToServer}
+                    inputMode="numeric"
+                  />
+                </label>
+                <label className="server-upload-field server-upload-field--path">
+                  <span className="server-upload-field-label">Путь на сервере:</span>
+                  <input
+                    type="text"
+                    className="info-input"
+                    value={serverRemotePath}
+                    onChange={(e) => setServerRemotePath(e.target.value)}
+                    placeholder="/var/www/html"
+                    disabled={uploadingToServer}
+                  />
+                </label>
+              </div>
+              <div className="server-upload-actions">
+                <button
+                  type="button"
+                  className="save-button server-upload-submit"
+                  onClick={handleUploadToServer}
+                  disabled={
+                    uploadingToServer ||
+                    !serverHost.trim() ||
+                    !serverUsername.trim() ||
+                    !serverPassword
+                  }
+                  title="Собирает dist (если нужно) и загружает на сервер по SFTP (порт 22) или FTP (порт 21)"
+                >
+                  {uploadingToServer ? "Загрузка…" : "Загрузить на сервер"}
+                </button>
+                <button
+                  type="button"
+                  className="cancel-button server-upload-archive"
+                  onClick={handleArchiveProject}
+                  disabled={uploadingToServer}
+                  title="Скачать ZIP исходников проекта (без node_modules и dist)"
+                >
+                  Архивировать проект
+                </button>
+              </div>
+              <small className="server-upload-hint">
+                Порт 22 — SFTP, порт 21 — FTP. Загружается содержимое{" "}
+                <code>dist</code> (после сборки).{" "}
+                <strong>Важно:</strong> «Путь на сервере» должен быть{" "}
+                <em>ровно тем каталогом</em>, который веб‑сервер показывает
+                как корень сайта (например <code>/var/www/html</code>,{" "}
+                <code>~/public_html</code>, путь из панели хостинга). Путь{" "}
+                <code>/</code> почти всегда не совпадает с сайтом по IP —
+                тогда загрузка «успешна», но в браузере остаётся старая копия
+                из другой папки. Кеш и CDN нужно очистить вручную.
+              </small>
             </div>
           </div>
 
@@ -2346,11 +3045,21 @@ const ProjectDetails: React.FC = () => {
               <button
                 onClick={handleGenerateAllImages}
                 className="generate-all-images-button"
-                disabled={generatingAllImages}
+                disabled={
+                  generatingAllImages ||
+                  generatingPageImages.size > 0 ||
+                  queuedPageImages.size > 0
+                }
+                title="Генерирует картинки для всех страниц проекта по очереди на сервере"
               >
-                {generatingAllImages
-                  ? "Генерация всех картинок..."
-                  : "🖼️ Сгенерировать все картинки"}
+                {generatingAllImages && allImagesProgress
+                  ? `Генерация ${allImagesProgress.current}/${allImagesProgress.total}: ${
+                      PAGE_NAMES[allImagesProgress.pageType as PageType] ||
+                      allImagesProgress.pageType
+                    }…`
+                  : generatingAllImages
+                    ? "Генерация всех картинок..."
+                    : "🖼️ Сгенерировать все картинки"}
               </button>
             )}
           </div>
@@ -2420,12 +3129,10 @@ const ProjectDetails: React.FC = () => {
                     <button
                       className="generate-images-btn"
                       onClick={() => handleGenerateImages(pageType, pageInfo)}
-                      disabled={generatingImages === pageType}
-                      title="Сгенерировать картинки"
+                      disabled={isPageImageBusy(pageType)}
+                      title="Сгенерировать картинки для этой страницы (можно нажать на нескольких — выполнится по очереди)"
                     >
-                      {generatingImages === pageType
-                        ? "Генерация..."
-                        : "🖼️ Сгенерировать"}
+                      {pageImageButtonLabel(pageType)}
                     </button>
                   </div>
                   {pageInfo.images && pageInfo.images.length > 0 ? (
@@ -2545,12 +3252,10 @@ const ProjectDetails: React.FC = () => {
                           onClick={() =>
                             handleGenerateImages(pageType, pageInfo)
                           }
-                          disabled={generatingImages === pageType}
-                          title="Сгенерировать картинки"
+                          disabled={isPageImageBusy(pageType)}
+                          title="Сгенерировать картинки для этой страницы (можно нажать на нескольких — выполнится по очереди)"
                         >
-                          {generatingImages === pageType
-                            ? "Генерация..."
-                            : "🖼️ Сгенерировать"}
+                          {pageImageButtonLabel(pageType)}
                         </button>
                       </div>
                       {pageInfo.images && pageInfo.images.length > 0 ? (
@@ -2648,6 +3353,7 @@ const ProjectDetails: React.FC = () => {
             loadProject();
             setRegeneratePageType(null);
           }}
+          onPreviewNeedsRestart={restartPreviewIfRunningForProject}
         />
       )}
 

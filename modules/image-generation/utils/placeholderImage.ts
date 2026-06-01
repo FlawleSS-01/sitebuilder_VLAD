@@ -64,10 +64,21 @@ export async function writePlaceholderLogoWebp(
   const outPath = path.join(imagesDir, "logo.webp");
   const w = 512;
   const h = 160;
+  const hue = hashHue(brand || "logo");
+  const g1 = `hsl(${hue}, 95%, 62%)`;
+  const g2 = `hsl(${(hue + 42) % 360}, 92%, 58%)`;
+  const g3 = `hsl(${(hue + 88) % 360}, 88%, 55%)`;
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+  <defs>
+    <linearGradient id="brandWordmark" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:${g1}"/>
+      <stop offset="50%" style="stop-color:${g2}"/>
+      <stop offset="100%" style="stop-color:${g3}"/>
+    </linearGradient>
+  </defs>
   <rect width="100%" height="100%" rx="12" fill="#1a1a2e"/>
-  <text x="50%" y="58%" text-anchor="middle" fill="#e94560" font-family="system-ui,sans-serif" font-size="28" font-weight="700">${escapeXml(
+  <text x="50%" y="58%" text-anchor="middle" fill="url(#brandWordmark)" font-family="system-ui,sans-serif" font-size="28" font-weight="700">${escapeXml(
     brand || "Logo"
   )}</text>
 </svg>`;

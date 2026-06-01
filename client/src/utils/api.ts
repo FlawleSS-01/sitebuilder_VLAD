@@ -1,3 +1,26 @@
+/** Базовый URL API из VITE_API_URL (пусто = относительные пути, Vite проксирует /api). */
+export function getApiBaseUrl(): string {
+  return (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+}
+
+export function buildApiUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const base = getApiBaseUrl();
+  return base ? `${base}${normalized}` : normalized;
+}
+
+/**
+ * fetch + безопасный JSON. При HTML вместо JSON — понятная ошибка (прокси, бэкенд не запущен).
+ */
+export async function fetchJson(
+  path: string,
+  init?: RequestInit
+): Promise<{ response: Response; data: any }> {
+  const response = await fetch(buildApiUrl(path), init);
+  const data = await parseResponseJson(response);
+  return { response, data };
+}
+
 /**
  * Безопасный парсинг JSON из fetch Response.
  * Обрабатывает случай, когда сервер возвращает HTML вместо JSON

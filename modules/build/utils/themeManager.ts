@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import { readProjectTemplateName } from "../../preview/utils/nodeModulesCopy.js";
+import { sortThemeIds } from "./themeCatalog.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -65,7 +67,7 @@ export function getAvailableThemes(): string[] {
     }
   }
 
-  return Array.from(names).sort();
+  return sortThemeIds(Array.from(names));
 }
 
 /**
@@ -195,6 +197,38 @@ export function copyThemeToProject(
 
   const targetThemePath = path.join(themesDir, `${themeName}.css`);
   fs.copyFileSync(sourceThemePath, targetThemePath);
+}
+
+/**
+ * Обновляет src/index.css из шаблона проекта (нужно для новых правил hero/marquee в index.css).
+ * Сохраняет выбранный @import темы через updateIndexCSS.
+ */
+export function syncProjectIndexCssFromTemplate(projectPath: string): void {
+  const templateName = readProjectTemplateName(projectPath);
+  const sourceIndex = path.join(
+    APP_ROOT,
+    "modules",
+    "source",
+    templateName,
+    "src",
+    INDEX_CSS_FILE
+  );
+  const fallbackIndex = path.join(
+    APP_ROOT,
+    "modules",
+    "source",
+    "default-template",
+    "src",
+    INDEX_CSS_FILE
+  );
+  const srcPath = fs.existsSync(sourceIndex) ? sourceIndex : fallbackIndex;
+  if (!fs.existsSync(srcPath)) {
+    throw new Error(`Template index.css not found for ${templateName}`);
+  }
+
+  const destPath = path.join(projectPath, "src", INDEX_CSS_FILE);
+  fs.mkdirSync(path.dirname(destPath), { recursive: true });
+  fs.copyFileSync(srcPath, destPath);
 }
 
 /**

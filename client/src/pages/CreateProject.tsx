@@ -26,9 +26,19 @@ interface GeoPresetRow {
   templateCampaignId?: string | null;
 }
 
-interface LangOpt {
+interface CustomPageDraft {
+  name: string;
+  slug: string;
+  blocks: string;
+}
+
+interface SavedDeployServer {
+  id: string;
   label: string;
-  locale: string;
+  host: string;
+  port: number;
+  username: string;
+  remotePath: string;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || "";
@@ -94,6 +104,22 @@ const CreateProject: React.FC = () => {
   const [templatesFromApi, setTemplatesFromApi] = useState(false);
   const [apkFile, setApkFile] = useState<File | null>(null);
 
+  const [generationMode, setGenerationMode] = useState<"manual" | "auto">(
+    "manual"
+  );
+  const [globalKeywords, setGlobalKeywords] = useState("");
+  const [deployServers, setDeployServers] = useState<SavedDeployServer[]>([]);
+  const [selectedServerId, setSelectedServerId] = useState<string>("__new__");
+  const [serverHost, setServerHost] = useState("");
+  const [serverPort, setServerPort] = useState("22");
+  const [serverUsername, setServerUsername] = useState("");
+  const [serverPassword, setServerPassword] = useState("");
+  const [serverRemotePath, setServerRemotePath] = useState("/");
+  const [saveServerAfter, setSaveServerAfter] = useState(false);
+  const [serverLabel, setServerLabel] = useState("");
+  const [addCustomPages, setAddCustomPages] = useState(false);
+  const [customPages, setCustomPages] = useState<CustomPageDraft[]>([]);
+
   const selectedGeo = useMemo(
     () =>
       geoSelect && geoSelect !== CUSTOM_GEO
@@ -119,6 +145,17 @@ const CreateProject: React.FC = () => {
       locales: [...normLocs],
     });
     setLanguageDirty(false);
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/build/deploy-servers`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success && Array.isArray(j.servers)) {
+          setDeployServers(j.servers);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -432,6 +469,20 @@ const CreateProject: React.FC = () => {
       return;
     }
 
+    if (generationMode === "auto") {
+      if (!serverHost.trim() || !serverUsername.trim() || !serverPassword) {
+        setError(
+          "В режиме автогенерации укажите сервер деплоя (хост, пользователь, пароль)"
+        );
+        return;
+      }
+      const portNum = parseInt(serverPort, 10);
+      if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) {
+        setError("Порт сервера должен быть от 1 до 65535");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -481,11 +532,28 @@ const CreateProject: React.FC = () => {
         languagePresetSource,
         alwaysOpenPreviewAfterGeneration: alwaysOpenPreview,
         askBeforeBuild,
+        generationMode,
+        globalKeywords: globalKeywords.trim() || undefined,
+        customPages: addCustomPages
+          ? customPages
+              .filter((p) => p.name.trim())
+              .map((p) => ({
+                name: p.name.trim(),
+                slug: p.slug.trim() || undefined,
+                blocks: p.blocks
+                  .split(",")
+                  .map((b) => b.trim())
+                  .filter(Boolean),
+              }))
+          : undefined,
       };
 
       const formPayload = new FormData();
       formPayload.append("projectName", projectName);
-      formPayload.append("templateName", formData.templateName);
+      formPayload.append(
+        "templateName",
+        generationMode === "auto" ? "default-template" : formData.templateName
+      );
       formPayload.append("metadata", JSON.stringify(metadata));
       if (apkFile) {
         formPayload.append("apk", apkFile);
@@ -500,6 +568,50 @@ const CreateProject: React.FC = () => {
 
       if (!createResponse.ok) {
         throw new Error(createData.error || "Не удалось создать проект");
+      }
+
+      if (generationMode === "auto") {
+        const portNum = parseInt(serverPort, 10);
+        if (saveServerAfter && serverHost.trim()) {
+          await fetch(`${API_URL}/api/build/deploy-servers`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              label: serverLabel.trim() || serverHost.trim(),
+              host: serverHost.trim(),
+              port: portNum,
+              username: serverUsername.trim(),
+              remotePath: serverRemotePath.trim() || "/",
+            }),
+          });
+        }
+
+        const autoRes = await fetch(
+          `${API_URL}/api/build/project/${encodeURIComponent(projectName)}/auto-generate`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              server: {
+                host: serverHost.trim(),
+                port: portNum,
+                username: serverUsername.trim(),
+                password: serverPassword,
+                remotePath: serverRemotePath.trim() || "/",
+                savedServerId:
+                  selectedServerId !== "__new__" ? selectedServerId : undefined,
+              },
+              globalKeywords: globalKeywords.trim() || undefined,
+              customPages: metadata.customPages,
+            }),
+          }
+        );
+        const autoData = await autoRes.json();
+        if (!autoRes.ok) {
+          throw new Error(
+            autoData.message || autoData.error || "Не удалось запустить автогенерацию"
+          );
+        }
       }
 
       navigate(`/project/${projectName}`);
@@ -830,6 +942,235 @@ const CreateProject: React.FC = () => {
             </label>
           </div>
 
+          <div
+            className="form-group"
+            style={{
+              border: "1px solid #ccc",
+              borderRadius: 8,
+              padding: 16,
+              marginBottom: 16,
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>Режим генерации</h3>
+            <label style={{ marginRight: 16 }}>
+              <input
+                type="radio"
+                name="generationMode"
+                checked={generationMode === "manual"}
+                onChange={() => setGenerationMode("manual")}
+              />{" "}
+              Ручной режим
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="generationMode"
+                checked={generationMode === "auto"}
+                onChange={() => setGenerationMode("auto")}
+              />{" "}
+              Автогенерация
+            </label>
+            {generationMode === "auto" && (
+              <p style={{ fontSize: 13, color: "#555", marginBottom: 0 }}>
+                После создания проекта система сама сгенерирует страницы, тексты,
+                изображения, favicon, соберёт build и загрузит сайт на сервер.
+              </p>
+            )}
+          </div>
+
+          {generationMode === "auto" && (
+            <>
+              <div className="form-group">
+                <label htmlFor="globalKeywords">
+                  Общие ключевые слова (необязательно)
+                </label>
+                <input
+                  type="text"
+                  id="globalKeywords"
+                  value={globalKeywords}
+                  onChange={(e) => setGlobalKeywords(e.target.value)}
+                  placeholder="бонус, VIP, мобильное приложение…"
+                />
+              </div>
+
+              <div
+                className="form-group"
+                style={{
+                  border: "1px solid #ddd",
+                  borderRadius: 8,
+                  padding: 16,
+                }}
+              >
+                <h3 style={{ marginTop: 0 }}>Сервер для деплоя *</h3>
+                <label htmlFor="deployServerSelect">Сохранённый сервер</label>
+                <select
+                  id="deployServerSelect"
+                  value={selectedServerId}
+                  onChange={(e) => setSelectedServerId(e.target.value)}
+                  style={{ marginBottom: 12, display: "block", width: "100%" }}
+                >
+                  <option value="__new__">Новый сервер</option>
+                  {deployServers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label} ({s.host})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  placeholder="Хост / IP"
+                  value={serverHost}
+                  onChange={(e) => setServerHost(e.target.value)}
+                  style={{ marginBottom: 8, width: "100%" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Порт (22 = SFTP)"
+                  value={serverPort}
+                  onChange={(e) => setServerPort(e.target.value)}
+                  style={{ marginBottom: 8, width: "100%" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Имя пользователя"
+                  value={serverUsername}
+                  onChange={(e) => setServerUsername(e.target.value)}
+                  style={{ marginBottom: 8, width: "100%" }}
+                />
+                <input
+                  type="password"
+                  placeholder="Пароль"
+                  value={serverPassword}
+                  onChange={(e) => setServerPassword(e.target.value)}
+                  style={{ marginBottom: 8, width: "100%" }}
+                />
+                <input
+                  type="text"
+                  placeholder="Путь на сервере (например /var/www/html)"
+                  value={serverRemotePath}
+                  onChange={(e) => setServerRemotePath(e.target.value)}
+                  style={{ marginBottom: 8, width: "100%" }}
+                />
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={saveServerAfter}
+                    onChange={(e) => setSaveServerAfter(e.target.checked)}
+                  />{" "}
+                  Сохранить сервер (без пароля)
+                </label>
+                {saveServerAfter && (
+                  <input
+                    type="text"
+                    placeholder="Метка сервера"
+                    value={serverLabel}
+                    onChange={(e) => setServerLabel(e.target.value)}
+                    style={{ marginTop: 8, width: "100%" }}
+                  />
+                )}
+              </div>
+
+              <div
+                className="form-group"
+                style={{
+                  border: "1px solid #ddd",
+                  borderRadius: 8,
+                  padding: 16,
+                }}
+              >
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={addCustomPages}
+                    onChange={(e) => {
+                      setAddCustomPages(e.target.checked);
+                      if (e.target.checked && customPages.length === 0) {
+                        setCustomPages([
+                          { name: "", slug: "", blocks: "welcome, features, category" },
+                        ]);
+                      }
+                    }}
+                  />{" "}
+                  Добавить кастомные страницы
+                </label>
+                {addCustomPages && (
+                  <div style={{ marginTop: 12 }}>
+                    {customPages.map((cp, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          border: "1px solid #eee",
+                          padding: 10,
+                          marginBottom: 8,
+                          borderRadius: 6,
+                        }}
+                      >
+                        <input
+                          type="text"
+                          placeholder="Название (Slots)"
+                          value={cp.name}
+                          onChange={(e) => {
+                            const next = [...customPages];
+                            next[idx] = { ...next[idx], name: e.target.value };
+                            setCustomPages(next);
+                          }}
+                          style={{ width: "100%", marginBottom: 6 }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Slug (необязательно)"
+                          value={cp.slug}
+                          onChange={(e) => {
+                            const next = [...customPages];
+                            next[idx] = { ...next[idx], slug: e.target.value };
+                            setCustomPages(next);
+                          }}
+                          style={{ width: "100%", marginBottom: 6 }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Блоки через запятую (мин. 3)"
+                          value={cp.blocks}
+                          onChange={(e) => {
+                            const next = [...customPages];
+                            next[idx] = { ...next[idx], blocks: e.target.value };
+                            setCustomPages(next);
+                          }}
+                          style={{ width: "100%" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCustomPages(customPages.filter((_, i) => i !== idx))
+                          }
+                          style={{ marginTop: 6 }}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCustomPages([
+                          ...customPages,
+                          {
+                            name: "",
+                            slug: "",
+                            blocks: "welcome, features, category",
+                          },
+                        ])
+                      }
+                    >
+                      + Добавить страницу
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {generationMode === "manual" && (
           <div className="form-group">
             <label htmlFor="templateName">Шаблон проекта *</label>
             <select
@@ -896,6 +1237,7 @@ const CreateProject: React.FC = () => {
               </small>
             )}
           </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="domain">Домен *</label>
@@ -948,7 +1290,13 @@ const CreateProject: React.FC = () => {
               !showLanguageBlock
             }
           >
-            {loading ? "Создание проекта..." : "Создать проект"}
+            {loading
+              ? generationMode === "auto"
+                ? "Создание и автогенерация…"
+                : "Создание проекта..."
+              : generationMode === "auto"
+                ? "Создать и автогенерировать"
+                : "Создать проект"}
           </button>
         </form>
 

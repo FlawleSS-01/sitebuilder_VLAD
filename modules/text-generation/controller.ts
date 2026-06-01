@@ -1,105 +1,22 @@
 import { Request, Response } from "express";
 import OpenAI from "openai";
-import { validateAndParseJSON } from "./utils/jsonValidator.js";
 import {
-  getStructureTemplate,
-  generateSystemPrompt,
-  generateUserPrompt,
-} from "./prompts/index.js";
+  generatePageContentCore,
+  generateCustomPageContentCore,
+  generateFaqContentCore,
+  getModelForPageType,
+} from "./generateCore.js";
 import {
   getStructureForBlock,
-  getStructureTemplateWithCustomTemplates,
 } from "./prompts/templates.js";
 import {
   generatePageVariants,
-  addVariantsToPageData,
-  generateListVariant,
 } from "./utils/variantGenerator.js";
 import { modelSupportsCustomTemperature } from "../shared/openaiModel.js";
+import { generateSingleBlockSystemPrompt } from "./prompts/index.js";
 
 const DEFAULT_OPENAI_MODEL =
   process.env.OPENAI_MODEL_DEFAULT || "gpt-4o-mini";
-
-const PAGE_FILE_MAP_FOR_UNIQUENESS: Record<string, string> = {
-  homepage: "main.json",
-  casino: "casino.json",
-  slots: "slots.json",
-  games: "games.json",
-  betting: "betting.json",
-  app: "app.json",
-  login: "login.json",
-};
-
-/**
- * Reads existing pages of the project and returns a short string with
- * already-used title/description pairs. The prompt feeds this back to
- * the model so each new generation produces UNIQUE meta — no duplicate
- * titles across pages, which also helps SEO (Google penalises near-dup
- * meta).
- *
- * Returns null if no project context is available; the prompt then
- * skips the uniqueness signal entirely.
- */
-async function buildUniquenessHint(
-  projectName: string | undefined,
-  excludePageType: string,
-  language: string
-): Promise<string | null> {
-  if (!projectName) return null;
-  try {
-    const path = await import("path");
-    const fs = await import("fs");
-    const projectPath = path.join(process.cwd(), "projects", projectName);
-    const pagesDir = path.join(projectPath, "src", "pages");
-    if (!fs.existsSync(pagesDir)) return null;
-
-    const lines: string[] = [];
-    const seenFiles = new Set<string>();
-    for (const file of fs.readdirSync(pagesDir)) {
-      if (!file.endsWith(".json")) continue;
-      if (file === "images.json" || file === "page-metadata.json") continue;
-      // Skip the file we're about to (re)generate — its OLD copy must
-      // not anchor the model to repeat itself when regenerating the
-      // same page.
-      const skipFile = PAGE_FILE_MAP_FOR_UNIQUENESS[excludePageType];
-      if (skipFile && file === skipFile) continue;
-      if (seenFiles.has(file)) continue;
-      seenFiles.add(file);
-
-      try {
-        const raw = fs.readFileSync(path.join(pagesDir, file), "utf-8");
-        const data = JSON.parse(raw);
-        const t = typeof data?.title === "string" ? data.title.trim() : "";
-        const d =
-          typeof data?.description === "string"
-            ? data.description.trim()
-            : "";
-        if (t || d) {
-          lines.push(
-            `- ${file}: title="${t.slice(0, 110)}", description="${d.slice(
-              0,
-              200
-            )}"`
-          );
-        }
-      } catch {
-        /* ignore unreadable page files */
-      }
-      if (lines.length >= 8) break; // cap so prompt doesn't balloon
-    }
-    if (lines.length === 0) return null;
-
-    // Add a fresh entropy stamp so even regenerating the SAME page
-    // twice in a row produces different wording (the model also has
-    // temperature, but the hint makes the variance explicit).
-    const stamp = `seed=${Date.now().toString(36)}-${Math.floor(
-      Math.random() * 1e6
-    ).toString(36)}, target_language=${language}`;
-    return [`Already used on sibling pages:`, ...lines, stamp].join("\n");
-  } catch {
-    return null;
-  }
-}
 
 function openAiHttpDetails(error: any): {
   message: string;
@@ -177,7 +94,6 @@ export const generateText = async (req: Request, res: Response) => {
       projectName,
     } = req.body as GenerateTextRequest & { projectName?: string };
 
-    // Validation
     if (!brand || !language || !country || !domain || !affiliateLink) {
       return res.status(400).json({
         error:
@@ -197,163 +113,34 @@ export const generateText = async (req: Request, res: Response) => {
       });
     }
 
-    // Проверяем наличие API ключа
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({
         error: "OpenAI API key is not configured",
       });
     }
 
-    // Создаем клиент OpenAI с актуальным ключом
-    const openai = new OpenAI({
-      apiKey: apiKey.trim(), // Убираем возможные пробелы
-    });
-
-    // Получаем модель для конкретного типа страницы
-    const getModelForPageType = (pageType: string): string => {
-      const modelMap: Record<string, string> = {
-        homepage:
-          process.env.OPENAI_MODEL_HOMEPAGE ||
-          process.env.OPENAI_MODEL ||
-          DEFAULT_OPENAI_MODEL,
-        casino:
-          process.env.OPENAI_MODEL_CASINO ||
-          process.env.OPENAI_MODEL ||
-          DEFAULT_OPENAI_MODEL,
-        slots:
-          process.env.OPENAI_MODEL_SLOTS || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-        games:
-          process.env.OPENAI_MODEL_GAMES || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-        betting:
-          process.env.OPENAI_MODEL_BETTING ||
-          process.env.OPENAI_MODEL ||
-          DEFAULT_OPENAI_MODEL,
-        app:
-          process.env.OPENAI_MODEL_APP || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-        login:
-          process.env.OPENAI_MODEL_LOGIN || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-      };
-      return modelMap[pageType] || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
-    };
-
-    const model = getModelForPageType(pageType);
-
-    // Логируем информацию о ключе (первые и последние символы для безопасности)
-    const keyPreview =
-      apiKey.length > 10
-        ? `${apiKey.substring(0, 7)}...${apiKey.substring(apiKey.length - 4)}`
-        : "***";
     console.log(
-      `[text-generation] API ключ загружен: ${keyPreview}, длина: ${apiKey.length}`
+      `[text-generation] Генерация текста для страницы: ${pageType}, модель: ${getModelForPageType(pageType)}${
+        blockKeywords ? " (block keywords applied)" : ""
+      }`
     );
 
-    // Если передан маппинг шаблонов (ручной выбор), используем его
-    // Иначе используем автовыбор из маппинга страницы
-    const structureTemplate =
-      blockTemplates && Object.keys(blockTemplates).length > 0
-        ? getStructureTemplateWithCustomTemplates(
-            pageType,
-            blocks,
-            blockTemplates
-          )
-        : getStructureTemplate(pageType, blocks);
-
-    const systemPrompt = generateSystemPrompt(
-      language,
+    const result = await generatePageContentCore({
       brand,
+      language,
       country,
       domain,
       affiliateLink,
       pageType,
-      structureTemplate
-    );
-    const uniquenessHint = await buildUniquenessHint(
-      projectName,
-      pageType,
-      language
-    );
-    const userPrompt = generateUserPrompt(
-      brand,
-      language,
-      country,
       blocks,
-      pageType,
-      uniquenessHint || undefined,
-      blockKeywords
-    );
-
-    console.log(
-      `[text-generation] Генерация текста для страницы: ${pageType}, модель: ${model}${
-        uniquenessHint ? " (uniqueness hint applied)" : ""
-      }${blockKeywords ? " (block keywords applied)" : ""}`
-    );
-
-    const completion = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      ...(modelSupportsCustomTemperature(model) ? { temperature: 0.7 } : {}),
-      response_format: { type: "json_object" },
+      blockTemplates,
+      blockKeywords,
+      projectName,
     });
-
-    const responseText = completion.choices[0].message.content;
-    if (!responseText) {
-      return res.status(500).json({
-        error: "Empty response from OpenAI",
-      });
-    }
-    console.log("[text-generation] Получен ответ от OpenAI");
-
-    // Validate and parse JSON
-    const imgBase = pageType;
-    const buttonText = "Play Now";
-    const parsedJSON = validateAndParseJSON(responseText, imgBase, buttonText);
-
-    if (!parsedJSON) {
-      return res.status(500).json({
-        error: "Invalid JSON response from OpenAI",
-        rawResponse: responseText,
-      });
-    }
-
-    // Получаем варианты стилей из project-settings.json проекта
-    let variants: any = null;
-    if (projectName) {
-      try {
-        const path = await import("path");
-        const fs = await import("fs");
-        const projectPath = path.join(process.cwd(), "projects", projectName);
-        const settingsPath = path.join(projectPath, "project-settings.json");
-
-        if (fs.existsSync(settingsPath)) {
-          const settingsContent = fs.readFileSync(settingsPath, "utf-8");
-          const settings = JSON.parse(settingsContent);
-          if (settings.variants) {
-            variants = settings.variants;
-          }
-        }
-      } catch (err: any) {
-        console.warn(
-          "[text-generation] Не удалось загрузить варианты из project-settings.json:",
-          err.message
-        );
-      }
-    }
-
-    // Если варианты не найдены, генерируем новые (fallback для старых проектов)
-    if (!variants) {
-      variants = generatePageVariants();
-    }
-
-    // Добавляем варианты стилей в JSON страницы
-    const pageDataWithVariants = addVariantsToPageData(parsedJSON, variants);
 
     res.json({
       success: true,
-      data: pageDataWithVariants,
+      data: result.data,
     });
   } catch (error: any) {
     console.error("[text-generation] Ошибка:", error);
@@ -399,7 +186,6 @@ export const generateCustomPage = async (req: Request, res: Response) => {
       projectName,
     } = req.body as GenerateCustomPageRequest & { projectName?: string };
 
-    // Validation
     if (!brand || !language || !country || !domain || !affiliateLink) {
       return res.status(400).json({
         error:
@@ -419,139 +205,34 @@ export const generateCustomPage = async (req: Request, res: Response) => {
       });
     }
 
-    // Проверяем наличие API ключа
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({
         error: "OpenAI API key is not configured",
       });
     }
 
-    // Создаем клиент OpenAI с актуальным ключом
-    const openai = new OpenAI({
-      apiKey: apiKey.trim(),
-    });
-
-    // Для кастомной страницы используем общую модель OPENAI_MODEL
-    const model = process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
-
-    // Создаем структуру шаблона на основе блоков
-    // Если передан маппинг шаблонов, используем его, иначе используем автопоиск
-    const structureTemplate: any[] = [];
-
-    blocks.forEach((block) => {
-      const templateId = blockTemplates?.[block];
-      const blockStructure = getStructureForBlock(block, templateId);
-      structureTemplate.push(blockStructure);
-    });
-
-    // Логируем информацию о ключе
-    const keyPreview =
-      apiKey.length > 10
-        ? `${apiKey.substring(0, 7)}...${apiKey.substring(apiKey.length - 4)}`
-        : "***";
     console.log(
-      `[text-generation] API ключ загружен: ${keyPreview}, длина: ${apiKey.length}`
+      `[text-generation] Генерация кастомной страницы: ${pageName}, модель: ${
+        process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL
+      }${blockKeywords ? " (block keywords applied)" : ""}`
     );
 
-    const systemPrompt = generateSystemPrompt(
-      language,
+    const result = await generateCustomPageContentCore({
       brand,
+      language,
       country,
       domain,
       affiliateLink,
       pageName,
-      structureTemplate
-    );
-    const uniquenessHint = await buildUniquenessHint(
-      projectName,
-      pageName,
-      language
-    );
-    const userPrompt = generateUserPrompt(
-      brand,
-      language,
-      country,
       blocks,
-      pageName,
-      uniquenessHint || undefined,
-      blockKeywords
-    );
-
-    console.log(
-      `[text-generation] Генерация кастомной страницы: ${pageName}, модель: ${model}${
-        uniquenessHint ? " (uniqueness hint applied)" : ""
-      }${blockKeywords ? " (block keywords applied)" : ""}`
-    );
-
-    const completion = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      ...(modelSupportsCustomTemperature(model) ? { temperature: 0.7 } : {}),
-      response_format: { type: "json_object" },
+      blockTemplates,
+      blockKeywords,
+      projectName,
     });
-
-    const responseText = completion.choices[0].message.content;
-    if (!responseText) {
-      return res.status(500).json({
-        error: "Empty response from OpenAI",
-      });
-    }
-    console.log(
-      "[text-generation] Получен ответ от OpenAI для кастомной страницы"
-    );
-
-    // Validate and parse JSON
-    // Используем название страницы в нижнем регистре для имени картинки
-    const imgBase = pageName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-    const buttonText = "Play Now";
-    const parsedJSON = validateAndParseJSON(responseText, imgBase, buttonText);
-
-    if (!parsedJSON) {
-      return res.status(500).json({
-        error: "Invalid JSON response from OpenAI",
-        rawResponse: responseText,
-      });
-    }
-
-    // Получаем варианты стилей из project-settings.json проекта
-    let variants: any = null;
-    if (projectName) {
-      try {
-        const path = await import("path");
-        const fs = await import("fs");
-        const projectPath = path.join(process.cwd(), "projects", projectName);
-        const settingsPath = path.join(projectPath, "project-settings.json");
-
-        if (fs.existsSync(settingsPath)) {
-          const settingsContent = fs.readFileSync(settingsPath, "utf-8");
-          const settings = JSON.parse(settingsContent);
-          if (settings.variants) {
-            variants = settings.variants;
-          }
-        }
-      } catch (err: any) {
-        console.warn(
-          "[text-generation] Не удалось загрузить варианты из project-settings.json:",
-          err.message
-        );
-      }
-    }
-
-    // Если варианты не найдены, генерируем новые (fallback для старых проектов)
-    if (!variants) {
-      variants = generatePageVariants();
-    }
-
-    // Добавляем варианты стилей в JSON страницы
-    const pageDataWithVariants = addVariantsToPageData(parsedJSON, variants);
 
     res.json({
       success: true,
-      data: pageDataWithVariants,
+      data: result.data,
     });
   } catch (error: any) {
     console.error(
@@ -569,6 +250,24 @@ export const generateCustomPage = async (req: Request, res: Response) => {
     });
   }
 };
+
+/** Достаёт массив блоков из ответа модели (устойчиво к типичным отклонениям формы). */
+function extractBlocksFromSingleBlockResponse(parsed: unknown): any[] | null {
+  if (!parsed || typeof parsed !== "object") return null;
+  const o = parsed as Record<string, unknown>;
+  const blocks = o.blocks;
+  if (Array.isArray(blocks) && blocks.length > 0) return blocks as any[];
+  if (blocks && typeof blocks === "object" && !Array.isArray(blocks))
+    return [blocks];
+  if (typeof o.blockType === "string" && Array.isArray(o.elements))
+    return [o];
+  const blk = o.block;
+  if (blk && typeof blk === "object") {
+    if (Array.isArray(blk)) return blk.length > 0 ? (blk as any[]) : null;
+    return [blk];
+  }
+  return null;
+}
 
 interface GenerateSingleBlockRequest {
   brand: string;
@@ -644,49 +343,22 @@ export const generateSingleBlock = async (req: Request, res: Response) => {
       apiKey: apiKey.trim(),
     });
 
-    // Получаем модель для конкретного типа страницы
-    const getModelForPageType = (pageType: string): string => {
-      const modelMap: Record<string, string> = {
-        homepage:
-          process.env.OPENAI_MODEL_HOMEPAGE ||
-          process.env.OPENAI_MODEL ||
-          DEFAULT_OPENAI_MODEL,
-        casino:
-          process.env.OPENAI_MODEL_CASINO ||
-          process.env.OPENAI_MODEL ||
-          DEFAULT_OPENAI_MODEL,
-        slots:
-          process.env.OPENAI_MODEL_SLOTS || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-        games:
-          process.env.OPENAI_MODEL_GAMES || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-        betting:
-          process.env.OPENAI_MODEL_BETTING ||
-          process.env.OPENAI_MODEL ||
-          DEFAULT_OPENAI_MODEL,
-        app:
-          process.env.OPENAI_MODEL_APP || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-        login:
-          process.env.OPENAI_MODEL_LOGIN || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL,
-      };
-      return modelMap[pageType] || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
-    };
-
     const model = isCustom
       ? process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL
       : getModelForPageType(pageType);
 
     // Получаем структуру для одного блока
     const blockStructure = getStructureForBlock(blockType, blockTemplate);
-    const structureTemplate = [blockStructure];
+    const pageLabel = isCustom ? pageName || pageType : pageType;
 
-    const systemPrompt = generateSystemPrompt(
+    const systemPrompt = generateSingleBlockSystemPrompt(
       language,
       brand,
       country,
       domain,
       affiliateLink,
-      isCustom ? pageName || pageType : pageType,
-      structureTemplate
+      pageLabel,
+      blockStructure as Record<string, unknown>
     );
 
     // Готовим guidance по ключевым словам для одного блока: парсим
@@ -721,7 +393,10 @@ Instead, use alternative sentence openings such as:
 - "Players can..."
 - "Users enjoy..."
 
-Never remove or avoid the brand name entirely.${keywordsGuidance}`;
+Never remove or avoid the brand name entirely.${keywordsGuidance}
+
+Reply with JSON whose ONLY top-level key is "blocks" (array of one object).`;
+
 
     console.log(
       `[text-generation] Генерация одного блока: ${blockType} для страницы ${pageType}, модель: ${model}${
@@ -778,19 +453,27 @@ Never remove or avoid the brand name entirely.${keywordsGuidance}`;
       });
     }
 
-    // Извлекаем только блок из ответа
-    if (
-      !parsedJSON.blocks ||
-      !Array.isArray(parsedJSON.blocks) ||
-      parsedJSON.blocks.length === 0
-    ) {
+    // Извлекаем блок из ответа (поддержка альтернативных форм от модели)
+    const blocksFromAi = extractBlocksFromSingleBlockResponse(parsedJSON);
+    if (!blocksFromAi || blocksFromAi.length === 0) {
       return res.status(500).json({
         error: "Invalid block structure in response",
         rawResponse: responseText,
       });
     }
 
-    const generatedBlock = parsedJSON.blocks[0];
+    const generatedBlock = blocksFromAi[0];
+    generatedBlock.blockType = blockType;
+    if (
+      !generatedBlock ||
+      typeof generatedBlock !== "object" ||
+      !Array.isArray(generatedBlock.elements)
+    ) {
+      return res.status(500).json({
+        error: "Invalid block structure in response",
+        rawResponse: responseText,
+      });
+    }
 
     // Загружаем существующий JSON страницы
     const path = await import("path");
@@ -986,7 +669,6 @@ export const generateFAQ = async (req: Request, res: Response) => {
     const { brand, language, country, count, projectName } =
       req.body as GenerateFAQRequest;
 
-    // Validation
     if (!brand || !language || !country) {
       return res.status(400).json({
         error: "Missing required fields: brand, language, country",
@@ -999,183 +681,27 @@ export const generateFAQ = async (req: Request, res: Response) => {
       });
     }
 
-    // Проверяем наличие API ключа
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({
         error: "OpenAI API key is not configured",
       });
     }
 
-    // Создаем клиент OpenAI с актуальным ключом
-    const openai = new OpenAI({
-      apiKey: apiKey.trim(),
-    });
-
-    // Используем модель для FAQ или общую модель
-    const model =
-      process.env.OPENAI_MODEL_FAQ || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
-
-    // Системный промт для FAQ
-    const systemPrompt = `You are a copywriter who creates FAQ content for online casinos. Generate clear, helpful questions and answers that address common player concerns.`;
-
-    // Пользовательский промт
-    const userPrompt = `Generate ${count} frequently asked questions (FAQ) with answers in ${language} for the online casino brand ${brand}. The text must be localized for players in ${country}.
-
-Return the result as a JSON object with the following structure:
-{
-  "faq": {
-    "h2": "Brand Name Casino FAQ",
-    "text": "A brief introductory paragraph explaining what this FAQ section covers (2-3 sentences).",
-    "items": [
-      {
-        "question": "Question text here",
-        "answer": "Answer text here (2-4 sentences, clear and helpful)"
-      }
-    ]
-  }
-}
-
-Make sure:
-- h2 should be the brand name followed by "Casino FAQ" (e.g., "${brand} Casino FAQ")
-- text is a brief introduction paragraph (2-3 sentences) explaining what the FAQ covers
-- Questions are relevant to online casino players
-- Answers are clear, helpful, and accurate (2-4 sentences each)
-- Content is appropriate for ${country} players
-- All text is in ${language}
-- Return valid JSON only, no markdown or explanations`;
-
     console.log(
       `[text-generation] Генерация FAQ для бренда ${brand}, язык: ${language}, страна: ${country}, количество: ${count}`
     );
 
-    const completion = await openai.chat.completions.create({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: 4000,
-      ...(modelSupportsCustomTemperature(model) ? { temperature: 0.7 } : {}),
+    const result = await generateFaqContentCore({
+      brand,
+      language,
+      country,
+      count,
+      projectName,
     });
-
-    const responseText = completion.choices[0]?.message?.content?.trim();
-
-    if (!responseText) {
-      return res.status(500).json({
-        error: "Empty response from OpenAI",
-      });
-    }
-
-    // Парсим JSON ответ (для FAQ используем простой парсинг без валидации страниц)
-    let parsedJSON;
-    try {
-      let cleaned = responseText.trim();
-
-      // Remove markdown code blocks if present
-      if (cleaned.startsWith("```")) {
-        cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, "");
-        cleaned = cleaned.replace(/\n?```\s*$/, "");
-        cleaned = cleaned.trim();
-      }
-
-      // Find JSON object boundaries
-      const firstBrace = cleaned.indexOf("{");
-      const lastBrace = cleaned.lastIndexOf("}");
-
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        cleaned = cleaned.substring(firstBrace, lastBrace + 1);
-      }
-
-      parsedJSON = JSON.parse(cleaned);
-    } catch (parseError: any) {
-      console.error("[text-generation] Ошибка парсинга FAQ JSON:", parseError);
-      return res.status(500).json({
-        error: "Invalid JSON response from OpenAI",
-        rawResponse: responseText,
-      });
-    }
-
-    // Проверяем структуру FAQ
-    if (!parsedJSON.faq || typeof parsedJSON.faq !== "object") {
-      return res.status(500).json({
-        error: "Invalid FAQ structure: missing 'faq' object",
-        rawResponse: responseText,
-      });
-    }
-
-    if (!parsedJSON.faq.h2 || typeof parsedJSON.faq.h2 !== "string") {
-      return res.status(500).json({
-        error: "Invalid FAQ structure: missing 'h2' field",
-        rawResponse: responseText,
-      });
-    }
-
-    if (!parsedJSON.faq.text || typeof parsedJSON.faq.text !== "string") {
-      return res.status(500).json({
-        error: "Invalid FAQ structure: missing 'text' field",
-        rawResponse: responseText,
-      });
-    }
-
-    if (!parsedJSON.faq.items || !Array.isArray(parsedJSON.faq.items)) {
-      return res.status(500).json({
-        error: "Invalid FAQ structure: missing 'items' array",
-        rawResponse: responseText,
-      });
-    }
-
-    // Проверяем структуру каждого элемента items
-    for (const item of parsedJSON.faq.items) {
-      if (!item.question || typeof item.question !== "string") {
-        return res.status(500).json({
-          error: "Invalid FAQ structure: missing 'question' field in item",
-          rawResponse: responseText,
-        });
-      }
-      if (!item.answer || typeof item.answer !== "string") {
-        return res.status(500).json({
-          error: "Invalid FAQ structure: missing 'answer' field in item",
-          rawResponse: responseText,
-        });
-      }
-    }
-
-    // Получаем вариант стиля для FAQ из project-settings.json проекта
-    let faqVariant: number | null = null;
-    if (projectName) {
-      try {
-        const path = await import("path");
-        const fs = await import("fs");
-        const projectPath = path.join(process.cwd(), "projects", projectName);
-        const settingsPath = path.join(projectPath, "project-settings.json");
-
-        if (fs.existsSync(settingsPath)) {
-          const settingsContent = fs.readFileSync(settingsPath, "utf-8");
-          const settings = JSON.parse(settingsContent);
-          if (settings.variants?.faqBlock !== undefined) {
-            faqVariant = settings.variants.faqBlock;
-          }
-        }
-      } catch (err: any) {
-        console.warn(
-          "[text-generation] Не удалось загрузить варианты FAQ из project-settings.json:",
-          err.message
-        );
-      }
-    }
-
-    // Если вариант не найден, генерируем новый (fallback для старых проектов)
-    if (faqVariant === null) {
-      faqVariant = generateListVariant();
-    }
-
-    // Добавляем вариант стиля для FAQ
-    parsedJSON.faq.variant = faqVariant;
 
     res.json({
       success: true,
-      data: parsedJSON,
+      data: result.data,
     });
   } catch (error: any) {
     console.error("[text-generation] Ошибка при генерации FAQ:", error);

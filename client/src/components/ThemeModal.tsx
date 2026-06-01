@@ -1,35 +1,12 @@
 import { useState, useEffect } from "react";
 import "./ThemeModal.css";
 import {
-  themeDisplayName,
-  themeDisplayNameRu,
-  themeTaglineRu,
+  buildFallbackThemeCatalog,
+  getThemeMeta,
+  type ThemeCatalogCard,
 } from "../constants/themeLabels";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
-
-/**
- * Small palette preview rendered on each theme card so the user can see
- * at-a-glance what the theme looks like, without opening the preview.
- * Matches the --sb-bg / --sb-accent / --sb-accent-2 of each theme preset.
- */
-const THEME_SWATCHES: Record<string, [string, string, string]> = {
-  default: ["#0b0f24", "#ffd166", "#ef476f"],
-  "blue-pink": ["#050b2e", "#ff3da5", "#5cd1ff"],
-  "blue-violet": ["#07061f", "#a259ff", "#ff66c4"],
-  "emerald-skyblue": ["#02180f", "#36e2c8", "#5cc8ff"],
-  "green-yellow": ["#061a07", "#f9e655", "#82e668"],
-  "grey-red": ["#121212", "#ff3b3f", "#ffb86b"],
-  theme1: ["#1a0510", "#ffb347", "#ff5e62"],
-  theme2: ["#14001a", "#ff4dd2", "#b14dff"],
-  theme3: ["#02180f", "#ffd166", "#5be79b"],
-  theme4: ["#050614", "#00f5d4", "#a3ff00"],
-  theme5: ["#050d24", "#f5d76e", "#c0c8de"],
-  theme6: ["#1a0606", "#ffae00", "#ff3b3f"],
-};
-
-const swatchFor = (themeId: string): [string, string, string] =>
-  THEME_SWATCHES[themeId] ?? ["#1a1244", "#ffd166", "#ef476f"];
 
 interface ThemeModalProps {
   isOpen: boolean;
@@ -37,20 +14,55 @@ interface ThemeModalProps {
   projectName: string;
 }
 
-const AVAILABLE_THEMES = [
-  "default",
-  "blue-pink",
-  "blue-violet",
-  "emerald-skyblue",
-  "green-yellow",
-  "grey-red",
-  "theme1",
-  "theme2",
-  "theme3",
-  "theme4",
-  "theme5",
-  "theme6",
-];
+function normalizeThemesFromApi(raw: unknown): ThemeCatalogCard[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+
+  if (typeof raw[0] === "string") {
+    const order = new Map(
+      buildFallbackThemeCatalog().map((t, i) => [t.id, i])
+    );
+    return (raw as string[])
+      .map((id) => ({ id, ...getThemeMeta(id) }))
+      .sort((a, b) => {
+        const ai = order.get(a.id) ?? 999;
+        const bi = order.get(b.id) ?? 999;
+        if (ai !== bi) return ai - bi;
+        return a.nameRu.localeCompare(b.nameRu, "ru");
+      });
+  }
+
+  const cards: ThemeCatalogCard[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const id = typeof row.id === "string" ? row.id : "";
+    if (!id) continue;
+    const sw = row.swatches;
+    const swatches: [string, string, string] =
+      Array.isArray(sw) &&
+      sw.length >= 3 &&
+      typeof sw[0] === "string" &&
+      typeof sw[1] === "string" &&
+      typeof sw[2] === "string"
+        ? [sw[0], sw[1], sw[2]]
+        : getThemeMeta(id).swatches;
+    cards.push({
+      id,
+      name:
+        typeof row.name === "string" ? row.name : getThemeMeta(id).name,
+      nameRu:
+        typeof row.nameRu === "string"
+          ? row.nameRu
+          : getThemeMeta(id).nameRu,
+      taglineRu:
+        typeof row.taglineRu === "string"
+          ? row.taglineRu
+          : getThemeMeta(id).taglineRu,
+      swatches,
+    });
+  }
+  return cards.length > 0 ? cards : null;
+}
 
 const ThemeModal: React.FC<ThemeModalProps> = ({
   isOpen,
@@ -63,7 +75,9 @@ const ThemeModal: React.FC<ThemeModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [presetThemes, setPresetThemes] = useState<string[]>(AVAILABLE_THEMES);
+  const [presetThemes, setPresetThemes] = useState<ThemeCatalogCard[]>(
+    buildFallbackThemeCatalog
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -72,13 +86,14 @@ const ThemeModal: React.FC<ThemeModalProps> = ({
         try {
           const r = await fetch(`${API_URL}/api/build/themes`);
           const j = await r.json();
-          if (r.ok && Array.isArray(j.themes) && j.themes.length > 0) {
-            setPresetThemes(j.themes);
+          const normalized = normalizeThemesFromApi(j.themes);
+          if (r.ok && normalized) {
+            setPresetThemes(normalized);
           } else {
-            setPresetThemes(AVAILABLE_THEMES);
+            setPresetThemes(buildFallbackThemeCatalog());
           }
         } catch {
-          setPresetThemes(AVAILABLE_THEMES);
+          setPresetThemes(buildFallbackThemeCatalog());
         }
       })();
     }
@@ -185,16 +200,16 @@ const ThemeModal: React.FC<ThemeModalProps> = ({
                 <h3>Выберите тему:</h3>
                 <div className="theme-presets-grid">
                   {presetThemes.map((theme) => {
-                    const [bg, accent, accent2] = swatchFor(theme);
-                    const tagline = themeTaglineRu(theme);
+                    const [bg, accent, accent2] = theme.swatches;
+                    const tagline = theme.taglineRu;
                     return (
                       <div
-                        key={theme}
+                        key={theme.id}
                         className={`theme-preset-item ${
-                          selectedTheme === theme ? "selected" : ""
+                          selectedTheme === theme.id ? "selected" : ""
                         }`}
-                        onClick={() => setSelectedTheme(theme)}
-                        title={`${themeDisplayNameRu(theme)} / ${themeDisplayName(theme)} · id: ${theme}`}
+                        onClick={() => setSelectedTheme(theme.id)}
+                        title={`${theme.nameRu} / ${theme.name} · id: ${theme.id}`}
                         style={
                           {
                             "--theme-preview-bg": bg,
@@ -209,10 +224,10 @@ const ThemeModal: React.FC<ThemeModalProps> = ({
                           <span className="theme-preset-swatch theme-preset-swatch--accent-2" />
                         </span>
                         <span className="theme-preset-label">
-                          {themeDisplayNameRu(theme)}
+                          {theme.nameRu}
                         </span>
                         <span className="theme-preset-sub-en">
-                          {themeDisplayName(theme)}
+                          {theme.name}
                         </span>
                         {tagline && (
                           <span className="theme-preset-tagline">{tagline}</span>
@@ -429,4 +444,3 @@ const ThemeModal: React.FC<ThemeModalProps> = ({
 };
 
 export default ThemeModal;
-

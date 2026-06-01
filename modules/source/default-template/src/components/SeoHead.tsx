@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { titleWithBrandLeading } from "../../page-title-brand-first";
 
 const SITE_NAME =
   (import.meta.env.VITE_SITE_NAME as string | undefined) || "Casino";
@@ -23,10 +24,8 @@ export function useSeoHead({
   pathname?: string;
 }): void {
   useEffect(() => {
-    const fullTitle = title
-      ? title.includes(SITE_NAME) || title === SITE_NAME
-        ? title
-        : `${title} | ${SITE_NAME}`
+    const fullTitle = title?.trim()
+      ? titleWithBrandLeading(SITE_NAME, title.trim())
       : SITE_NAME;
 
     const previousTitle = document.title;

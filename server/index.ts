@@ -52,7 +52,11 @@ app.use(express.json());
 // Логирование запросов (исключаем статус-запросы и health check)
 app.use((req, res, next) => {
   // Не логируем частые статус-запросы и health check
-  if (!req.path.includes("/api/preview/status") && req.path !== "/api/health") {
+  if (
+    !req.path.includes("/api/preview/status") &&
+    !req.path.includes("/auto-status") &&
+    req.path !== "/api/health"
+  ) {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   }
   next();
@@ -81,6 +85,15 @@ app.use("/api/preview", previewRouter);
 // Раздача статических файлов из projects (для сгенерированных изображений)
 const projectsPath = path.join(__dirname, "../projects");
 app.use("/projects", express.static(projectsPath));
+
+// Неизвестные API-маршруты — всегда JSON (не HTML SPA)
+app.use("/api", (req, res) => {
+  res.status(404).json({
+    error: "API route not found",
+    method: req.method,
+    path: req.path,
+  });
+});
 
 // Раздача статических файлов из client/dist (Vite)
 const buildPath = path.join(__dirname, "../client/dist");

@@ -25,9 +25,10 @@ export const initImageGeneration = (config: {
 export const generateImage = async (
   prompt: string,
   size: ImageSizeOption,
-  modelOverride?: string
+  modelOverride?: string,
+  negativePromptOverride?: string
 ): Promise<string> => {
-  return generateImageRunware(prompt, size, modelOverride);
+  return generateImageRunware(prompt, size, modelOverride, negativePromptOverride);
 };
 
 export const saveBase64ToFile = async (
@@ -48,9 +49,15 @@ export const generateAndSaveImage = async (
   prompt: string,
   size: ImageSizeOption,
   filePath: string,
-  modelOverride?: string
+  modelOverride?: string,
+  negativePromptOverride?: string
 ): Promise<{ base64: string; filePath: string }> => {
-  const base64 = await generateImage(prompt, size, modelOverride);
+  const base64 = await generateImage(
+    prompt,
+    size,
+    modelOverride,
+    negativePromptOverride
+  );
   await saveBase64ToFile(base64, filePath);
   return { base64, filePath };
 };

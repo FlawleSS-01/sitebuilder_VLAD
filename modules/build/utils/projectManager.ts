@@ -2,6 +2,10 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import {
+  copyNodeModulesToProjectSync,
+  writeProjectTemplateMarker,
+} from "../../preview/utils/nodeModulesCopy.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -86,6 +90,46 @@ export const ensurePlaceholderAssets = (projectPath: string): void => {
     const dest = path.join(publicImages, name);
     if (!fs.existsSync(dest) && fs.existsSync(src)) {
       fs.copyFileSync(src, dest);
+    }
+  }
+};
+
+/**
+ * Общие файлы из modules/source (не входят в папку шаблона), нужные Vite/TS в projects/<name>/.
+ */
+export const ensureSharedProjectFiles = (projectPath: string): void => {
+  const sharedModule = path.join(
+    APP_ROOT,
+    "modules",
+    "source",
+    "page-title-brand-first.ts"
+  );
+  const moduleDest = path.join(projectPath, "page-title-brand-first.ts");
+  if (fs.existsSync(sharedModule)) {
+    fs.copyFileSync(sharedModule, moduleDest);
+  }
+
+  const seoHeadPath = path.join(projectPath, "src", "components", "SeoHead.tsx");
+  if (fs.existsSync(seoHeadPath)) {
+    let seo = fs.readFileSync(seoHeadPath, "utf-8");
+    if (seo.includes("../../../page-title-brand-first")) {
+      seo = seo.replace(
+        /["']\.\.\/\.\.\/\.\.\/page-title-brand-first["']/g,
+        '"../../page-title-brand-first"'
+      );
+      fs.writeFileSync(seoHeadPath, seo, "utf-8");
+    }
+  }
+
+  const tsconfigPath = path.join(projectPath, "tsconfig.json");
+  if (fs.existsSync(tsconfigPath)) {
+    let tsc = fs.readFileSync(tsconfigPath, "utf-8");
+    if (tsc.includes("../page-title-brand-first.ts")) {
+      tsc = tsc.replace(
+        "../page-title-brand-first.ts",
+        "page-title-brand-first.ts"
+      );
+      fs.writeFileSync(tsconfigPath, tsc, "utf-8");
     }
   }
 };
@@ -178,6 +222,17 @@ export const createProject = (
   );
   copyDirectory(sourceTemplatePath, projectPath);
   ensurePlaceholderAssets(projectPath);
+  ensureSharedProjectFiles(projectPath);
+
+  try {
+    writeProjectTemplateMarker(projectPath, templateName);
+    copyNodeModulesToProjectSync(projectPath, templateName);
+  } catch (err) {
+    console.warn(
+      `[build] node_modules не скопированы при создании проекта:`,
+      err instanceof Error ? err.message : err
+    );
+  }
 
   console.log(`[build] Проект создан: ${projectPath}`);
   return projectPath;
@@ -292,8 +347,9 @@ export const saveProjectSettings = (
       link?: string | null;
     };
     googleHtml?: {
-      accountName: string;
-      /** Все загруженные в проект .html (новый формат) */
+      /** @deprecated — раньше папка в modules/google-accounts */
+      accountName?: string;
+      /** Все загруженные в проект .html */
       fileNames?: string[];
       /** @deprecated см. fileNames — оставлено для старых project-settings.json */
       fileName?: string;
@@ -301,6 +357,12 @@ export const saveProjectSettings = (
     heroButtons?: {
       button1Text?: string;
       button2Text?: string;
+    };
+    serverUpload?: {
+      host: string;
+      port: number;
+      username: string;
+      remotePath?: string;
     };
     htmlLang?: string;
     primaryLanguage?: string;
@@ -315,6 +377,12 @@ export const saveProjectSettings = (
     previewViewedAt?: string | null;
     alwaysOpenPreviewAfterGeneration?: boolean;
     askBeforeBuild?: boolean;
+    autoGeneration?: import("../../auto-generation/types.js").AutoGenerationState;
+    customPages?: Array<{
+      name: string;
+      slug?: string;
+      blocks?: string[];
+    }>;
   }
 ): void => {
   const settingsPath = path.join(projectPath, "project-settings.json");
@@ -435,11 +503,9 @@ export const getProjectPath = (projectName: string): string => {
 };
 
 /**
- * Удаляет проект (папку с проектом)
- * Работает на любой ОС, включая Ubuntu
+ * Удаляет проект (папку с проектом). Останавливает preview и снимает блокировки файлов.
  */
-export const deleteProject = (projectName: string): void => {
-  // Защита от path traversal
+export const deleteProject = async (projectName: string): Promise<void> => {
   if (!projectName || projectName.includes("..") || projectName.includes(path.sep)) {
     throw new Error("Недопустимое имя проекта");
   }
@@ -450,7 +516,19 @@ export const deleteProject = (projectName: string): void => {
     throw new Error(`Проект "${projectName}" не найден`);
   }
 
-  fs.rmSync(projectPath, { recursive: true });
+  const {
+    stopPreviewForProject,
+    releaseProjectFileLocks,
+    freePreviewPort,
+  } = await import("../../preview/utils/previewManager.js");
+  const { removeDirectoryRobust } = await import("./removeDirectory.js");
+
+  await stopPreviewForProject(projectName);
+  await freePreviewPort();
+  releaseProjectFileLocks(projectPath);
+  await new Promise((r) => setTimeout(r, 800));
+
+  await removeDirectoryRobust(projectPath);
   console.log(`[build] Проект "${projectName}" удалён`);
 };
 
@@ -464,13 +542,11 @@ export const projectExists = (projectName: string): boolean => {
 
 /** Нормализует googleHtml: миграция с legacy fileName на fileNames */
 export function normalizeGoogleHtml(raw: any): {
-  accountName: string;
+  accountName?: string;
   fileNames: string[];
   fileName?: string;
 } | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const accountName = raw.accountName;
-  if (typeof accountName !== "string" || !accountName.trim()) return undefined;
 
   let fileNames: string[] = Array.isArray(raw.fileNames)
     ? raw.fileNames.filter((f: unknown) => typeof f === "string" && f)
@@ -483,11 +559,16 @@ export function normalizeGoogleHtml(raw: any): {
     fileNames = [raw.fileName];
   }
 
+  if (fileNames.length === 0) return undefined;
+
   const out: {
-    accountName: string;
+    accountName?: string;
     fileNames: string[];
     fileName?: string;
-  } = { accountName, fileNames };
+  } = { fileNames };
+  if (typeof raw.accountName === "string" && raw.accountName.trim()) {
+    out.accountName = raw.accountName.trim();
+  }
   if (typeof raw.fileName === "string" && raw.fileName) {
     out.fileName = raw.fileName;
   }

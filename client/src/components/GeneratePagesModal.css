@@ -13,7 +13,7 @@
 }
 
 .modal-content {
-  background: white;
+  background: rgb(10, 10, 10);
   border-radius: 8px;
   max-width: 800px;
   width: 100%;
@@ -87,6 +87,34 @@
   background-color: #007bff;
   color: white;
   border-color: #007bff;
+}
+
+.global-keywords-all-pages {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  background: var(--ui-bg-2) !important;
+}
+
+.global-keywords-all-pages-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 13px;
+}
+
+.global-keywords-all-pages-input {
+  max-width: 100%;
+}
+
+.global-keywords-all-pages-hint {
+  display: block;
+  margin-top: 8px;
+  color: #666;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .pages-config {

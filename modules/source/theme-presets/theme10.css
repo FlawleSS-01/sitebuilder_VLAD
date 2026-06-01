@@ -1,0 +1,28 @@
+:root {
+  --sb-style-id: "cyber";
+  --sb-hero-align: center;
+  --sb-bg: #0f0f23;
+  --sb-bg-2: #0088ff;
+  --sb-fg: #f5f5f5;
+  --sb-fg-soft: rgba(245, 245, 245, 0.82);
+  --sb-accent: #00ff88;
+  --sb-accent-2: #0088ff;
+  --sb-accent-3: #00ff88;
+  --sb-card: rgba(255,255,255,0.06);
+  --sb-card-border: rgba(255,255,255,0.12);
+  --sb-header-bg: rgba(0,0,0,0.75);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(15, 15, 35, 0.95) 0%,
+    rgba(15, 15, 35, 0.75) 45%,
+    rgba(0, 136, 255, 0.35) 100%
+  );
+  --main-color: #0088ff;
+  --text-color: #f5f5f5;
+  --hero-color: #f5f5f5;
+  --card-background: #00ff88;
+  --mainBtn-background: #00ff88;
+  --mainBtn-color: #0f0f23;
+  --faq-color-active: #00ff88;
+}
+body { background: var(--sb-bg); color: var(--sb-fg); }

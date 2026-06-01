@@ -286,6 +286,26 @@ a {
   outline-offset: 2px;
 }
 
+/* Выпадающий список языка (native `<select>`): иначе в Windows/Chrome
+   пункты с белым фоном наследуют светлый `--sb-fg` и текст почти не виден. */
+.sb-locale select option {
+  background-color: #ffffff;
+  color: #111827;
+  font-weight: 600;
+}
+
+.sb-locale select option:hover,
+.sb-locale select option:focus,
+.sb-locale select option:active {
+  background-color: #e5edff;
+  color: #0f172a;
+}
+
+.sb-locale select option:checked {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
 /* Mobile burger ----------------------------------------------------------- */
 .sb-burger {
   display: none;
@@ -1326,7 +1346,7 @@ body[data-sb-style="magazine"] .sb-hero-inner {
   min-height: clamp(360px, 55vh, 560px);
 }
 body[data-sb-style="magazine"] .sb-hero-inner::after {
-  content: "";
+  content: var(--sb-hero-panel-content, "");
   position: absolute;
   right: 0;
   top: 50%;
@@ -1334,6 +1354,19 @@ body[data-sb-style="magazine"] .sb-hero-inner::after {
   width: clamp(0px, 34%, 420px);
   aspect-ratio: 5 / 4;
   border-radius: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.25rem 1.5rem;
+  font-family: var(--sb-font-heading);
+  font-size: clamp(0.82rem, 1.15vw, 1.02rem);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1.55;
+  color: var(--sb-hero-panel-color, rgba(255, 255, 255, 0.88));
+  white-space: normal;
   background: linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.08) 0%,
@@ -1698,9 +1731,9 @@ body[data-sb-style="diagonal"] .sb-header-cta {
 
 body[data-sb-style="diagonal"] .sb-marquee {
   background: var(--sb-bg-2);
-  color: var(--sb-accent);
-  border-bottom: 2px solid var(--sb-accent);
-  border-top: 2px solid var(--sb-accent-2);
+  color: var(--sb-marquee-fg, var(--sb-accent));
+  border-bottom: 2px solid var(--sb-marquee-border, var(--sb-accent));
+  border-top: 2px solid var(--sb-marquee-border-2, var(--sb-accent-2));
   letter-spacing: 0.32em;
   font-size: 0.78rem;
   transform: skewY(-1deg);
@@ -1711,7 +1744,7 @@ body[data-sb-style="diagonal"] .sb-marquee-track {
 }
 body[data-sb-style="diagonal"] .sb-marquee span::before {
   content: "◆";
-  color: var(--sb-accent-2);
+  color: var(--sb-marquee-bullet, var(--sb-accent-2));
 }
 
 /* ---- glass: floating pill capsule + translucent strip ----------------- */

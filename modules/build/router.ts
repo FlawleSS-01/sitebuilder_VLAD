@@ -33,14 +33,30 @@ import {
   saveCustomTheme,
   copyThemeToProject,
   updateIndexCSS,
+  syncProjectIndexCssFromTemplate,
   getAvailableThemes,
 } from "./utils/themeManager.js";
+import { getThemesCatalog } from "./utils/themeCatalog.js";
 import { generatePagesData } from "./utils/pagesDataGenerator.js";
 import { syncIndexHtmlHead } from "./utils/indexHtmlSync.js";
 import {
   createProjectArchive,
   buildAndArchiveProject,
+  ensureProjectDistBuilt,
 } from "./utils/archiveManager.js";
+import { uploadDirectoryToServer } from "./utils/serverUpload.js";
+import {
+  createInitialAutoGenerationState,
+  normalizeAutoCustomPages,
+  type AutoGenerationOptions,
+} from "../auto-generation/types.js";
+import { runAutoGeneration, isAutoGenerationRunning } from "../auto-generation/orchestrator.js";
+import { getAutoGenerationState } from "../auto-generation/status.js";
+import {
+  listDeployServers,
+  upsertDeployServer,
+} from "../auto-generation/deployServers.js";
+import { runExclusiveForProject } from "./utils/projectSettingsLock.js";
 // Настройка multer для загрузки файлов
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -53,6 +69,22 @@ const appUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 20 * 1024 * 1024, // 20MB
+  },
+});
+
+const googleHtmlUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 512 * 1024, // 512KB на файл
+    files: 20,
+  },
+  fileFilter: (_req, file, cb) => {
+    const name = path.basename(file.originalname || "").toLowerCase();
+    if (name.endsWith(".html")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only .html files are allowed"));
+    }
   },
 });
 
@@ -194,7 +226,9 @@ router.post("/create-project", appUpload.single("apk"), async (req, res) => {
     if (pagesInfo) {
       for (const [key, value] of Object.entries(pagesInfo)) {
         pagesWithFilePaths[key] = {
-          ...value,
+          ...(typeof value === "object" && value !== null
+            ? (value as Record<string, unknown>)
+            : {}),
           ...(filePaths[key] ? { filePath: filePaths[key] } : {}),
         };
       }
@@ -220,7 +254,7 @@ router.post("/create-project", appUpload.single("apk"), async (req, res) => {
         : [];
       locales = [
         ...new Set(
-          m.locales.map((x: string) =>
+          (m.locales as string[]).map((x: string) =>
             String(x).toLowerCase().replace(/_/g, "-")
           )
         ),
@@ -292,6 +326,18 @@ router.post("/create-project", appUpload.single("apk"), async (req, res) => {
 
     updateProjectIndexHtmlLang(projectPath, defaultLocale);
 
+    const generationMode =
+      m.generationMode === "auto" ? ("auto" as const) : ("manual" as const);
+    const autoGeneration = createInitialAutoGenerationState(generationMode);
+    if (generationMode === "auto") {
+      autoGeneration.options = {
+        globalKeywords:
+          typeof m.globalKeywords === "string" ? m.globalKeywords : undefined,
+        customPages: normalizeAutoCustomPages(m.customPages),
+        server: m.autoGenerationOptions?.server as AutoGenerationOptions["server"],
+      };
+    }
+
     saveProjectSettings(projectPath, {
       brand: metadata.brand,
       language: primaryLanguage,
@@ -317,6 +363,8 @@ router.post("/create-project", appUpload.single("apk"), async (req, res) => {
       alwaysOpenPreviewAfterGeneration:
         m.alwaysOpenPreviewAfterGeneration === true,
       askBeforeBuild: m.askBeforeBuild !== false,
+      autoGeneration,
+      customPages: normalizeAutoCustomPages(m.customPages),
       app: {
         hasApp: appFileName !== "/go",
         fileName: appFileName !== "/go" ? appFileName : null,
@@ -596,7 +644,7 @@ router.delete("/projects/:projectName", async (req, res) => {
       });
     }
 
-    deleteProject(projectName);
+    await deleteProject(projectName);
 
     res.json({
       success: true,
@@ -755,148 +803,99 @@ router.put("/project/:projectName/workflow-settings", async (req, res) => {
   }
 });
 
-// Получение списка Google аккаунтов (папок с HTML файлами)
-router.get("/google-accounts", async (req, res) => {
-  try {
-    const googleAccountsDir = path.join(process.cwd(), "modules", "google-accounts");
-    
-    if (!fs.existsSync(googleAccountsDir)) {
-      return res.json({
-        success: true,
-        accounts: [],
-      });
-    }
-
-    const accounts = fs
-      .readdirSync(googleAccountsDir, { withFileTypes: true })
-      .filter((dirent) => dirent.isDirectory())
-      .map((dirent) => dirent.name)
-      .sort();
-
-    res.json({
-      success: true,
-      accounts,
-    });
-  } catch (error: any) {
-    console.error("[build] Ошибка при получении списка аккаунтов:", error);
-    res.status(500).json({
-      error: "Failed to get google accounts list",
-      message: error.message,
-    });
+function collectTrackedGoogleHtmlNames(gh: any): string[] {
+  if (!gh || typeof gh !== "object") return [];
+  if (Array.isArray(gh.fileNames) && gh.fileNames.length > 0) {
+    return gh.fileNames.filter((f: unknown) => typeof f === "string" && f);
   }
-});
+  if (typeof gh.fileName === "string" && gh.fileName) {
+    return [gh.fileName];
+  }
+  return [];
+}
 
-// Загрузка HTML файла из Google аккаунта в проект
-router.post("/project/:projectName/google-html", async (req, res) => {
-  try {
-    const { projectName } = req.params;
-    const { accountName } = req.body;
+// Загрузка HTML верификации с диска пользователя → public проекта
+router.post(
+  "/project/:projectName/google-html",
+  googleHtmlUpload.array("files", 20),
+  async (req, res) => {
+    try {
+      const { projectName } = req.params;
+      const uploaded = (req as { files?: Express.Multer.File[] }).files;
 
-    if (!projectName) {
-      return res.status(400).json({
-        error: "Missing required field: projectName",
-      });
-    }
-
-    if (!accountName) {
-      return res.status(400).json({
-        error: "Missing required field: accountName",
-      });
-    }
-
-    if (!projectExists(projectName)) {
-      return res.status(404).json({
-        error: "Project not found",
-      });
-    }
-
-    const googleAccountsDir = path.join(process.cwd(), "modules", "google-accounts");
-    const accountDir = path.join(googleAccountsDir, accountName);
-
-    if (!fs.existsSync(accountDir)) {
-      return res.status(404).json({
-        error: "Account folder not found",
-      });
-    }
-
-    const htmlFiles = fs
-      .readdirSync(accountDir)
-      .filter((file) => file.toLowerCase().endsWith(".html"))
-      .sort();
-
-    if (htmlFiles.length === 0) {
-      return res.status(404).json({
-        error: "No .html files found in account folder",
-      });
-    }
-
-    const projectPath = getProjectPath(projectName);
-    const projectPublicDir = path.join(projectPath, "public");
-
-    fs.mkdirSync(projectPublicDir, { recursive: true });
-
-    const currentSettings = getProjectSettings(projectName);
-    if (!currentSettings) {
-      return res.status(404).json({
-        error: "Project settings not found",
-      });
-    }
-
-    const prevTracked: string[] = [];
-    const gh = currentSettings.googleHtml;
-    if (gh?.fileNames?.length) {
-      prevTracked.push(...gh.fileNames);
-    } else if (typeof gh?.fileName === "string" && gh.fileName) {
-      prevTracked.push(gh.fileName);
-    }
-
-    const newSet = new Set(htmlFiles);
-    for (const oldName of prevTracked) {
-      if (!newSet.has(oldName)) {
-        const p = path.join(projectPublicDir, oldName);
-        if (fs.existsSync(p)) {
-          try {
-            fs.unlinkSync(p);
-          } catch (e: any) {
-            console.warn("[build] Не удалось удалить устаревший HTML:", oldName, e?.message);
-          }
-        }
+      if (!projectName) {
+        return res.status(400).json({
+          error: "Missing required field: projectName",
+        });
       }
+
+      if (!projectExists(projectName)) {
+        return res.status(404).json({
+          error: "Project not found",
+        });
+      }
+
+      if (!uploaded?.length) {
+        return res.status(400).json({
+          error: "No .html files provided",
+        });
+      }
+
+      const projectPath = getProjectPath(projectName);
+      const projectPublicDir = path.join(projectPath, "public");
+      fs.mkdirSync(projectPublicDir, { recursive: true });
+
+      const currentSettings = getProjectSettings(projectName);
+      if (!currentSettings) {
+        return res.status(404).json({
+          error: "Project settings not found",
+        });
+      }
+
+      const savedNames: string[] = [];
+      for (const file of uploaded) {
+        const safeName = path.basename(file.originalname || "");
+        if (!safeName.toLowerCase().endsWith(".html")) {
+          continue;
+        }
+        fs.writeFileSync(path.join(projectPublicDir, safeName), file.buffer);
+        savedNames.push(safeName);
+      }
+
+      if (savedNames.length === 0) {
+        return res.status(400).json({
+          error: "No valid .html files in upload",
+        });
+      }
+
+      const prevTracked = collectTrackedGoogleHtmlNames(currentSettings.googleHtml);
+      const fileNames = [...new Set([...prevTracked, ...savedNames])].sort();
+
+      const updatedSettings = {
+        ...currentSettings,
+        googleHtml: {
+          fileNames,
+        },
+      };
+
+      saveProjectSettings(projectPath, updatedSettings);
+
+      res.json({
+        success: true,
+        message: `Загружено файлов: ${savedNames.length}`,
+        googleHtml: {
+          fileNames,
+        },
+      });
+    } catch (error: any) {
+      console.error("[build] Ошибка при загрузке HTML файла:", error);
+      res.status(500).json({
+        error: "Failed to upload HTML file",
+        message: error.message,
+      });
     }
-
-    for (const name of htmlFiles) {
-      fs.copyFileSync(
-        path.join(accountDir, name),
-        path.join(projectPublicDir, name)
-      );
-    }
-
-    const updatedSettings = {
-      ...currentSettings,
-      googleHtml: {
-        accountName,
-        fileNames: htmlFiles,
-      },
-    };
-
-    saveProjectSettings(projectPath, updatedSettings);
-
-    res.json({
-      success: true,
-      message: `Скопировано файлов: ${htmlFiles.length}`,
-      googleHtml: {
-        accountName,
-        fileNames: htmlFiles,
-      },
-    });
-  } catch (error: any) {
-    console.error("[build] Ошибка при загрузке HTML файла:", error);
-    res.status(500).json({
-      error: "Failed to upload HTML file",
-      message: error.message,
-    });
   }
-});
+);
 
 // Сохранение страниц в проект (опционально localizedPages: { en: { homepage: ... }, bn: { ... } })
 router.post("/save-pages", async (req, res) => {
@@ -966,7 +965,11 @@ router.post("/save-pages", async (req, res) => {
         const existingPages = currentSettings.pages || {};
         const updatedPages: Record<string, any> = {};
         for (const [key, value] of Object.entries(existingPages)) {
-          updatedPages[key] = { ...value };
+          updatedPages[key] = {
+            ...(typeof value === "object" && value !== null
+              ? (value as Record<string, unknown>)
+              : {}),
+          };
         }
 
         const touched = new Set([
@@ -1029,13 +1032,19 @@ router.post("/save-pages", async (req, res) => {
         const updatedPages: Record<string, any> = {};
 
         for (const [key, value] of Object.entries(existingPages)) {
-          updatedPages[key] = { ...value };
+          updatedPages[key] = {
+            ...(typeof value === "object" && value !== null
+              ? (value as Record<string, unknown>)
+              : {}),
+          };
         }
 
         for (const [key, value] of Object.entries(pagesInfo)) {
           updatedPages[key] = {
             ...(updatedPages[key] || {}),
-            ...value,
+            ...(typeof value === "object" && value !== null
+              ? (value as Record<string, unknown>)
+              : {}),
             ...(filePaths[key] ? { filePath: filePaths[key] } : {}),
           };
         }
@@ -1351,50 +1360,48 @@ router.post("/save-images", async (req, res) => {
       });
     }
 
-    const currentSettings = getProjectSettings(projectName);
-    if (!currentSettings) {
-      return res.status(404).json({
-        error: "Project settings not found",
+    await runExclusiveForProject(projectName, () => {
+      const currentSettings = getProjectSettings(projectName);
+      if (!currentSettings) {
+        throw new Error("Project settings not found");
+      }
+
+      const projectPath = getProjectPath(projectName);
+      const existingPages = { ...(currentSettings.pages || {}) };
+
+      if (existingPages[pageType]) {
+        existingPages[pageType] = {
+          ...existingPages[pageType],
+          images: images || [],
+          imagesGenerated: true,
+        };
+      } else {
+        existingPages[pageType] = {
+          pageType,
+          blocks: [],
+          generated: false,
+          images: images || [],
+          imagesGenerated: true,
+        };
+      }
+
+      saveProjectSettings(projectPath, {
+        ...currentSettings,
+        pages: existingPages,
       });
-    }
 
-    const projectPath = getProjectPath(projectName);
-    const existingPages = currentSettings.pages || {};
-
-    // Обновляем информацию о картинках для страницы
-    if (existingPages[pageType]) {
-      existingPages[pageType] = {
-        ...existingPages[pageType],
-        images: images || [],
-        imagesGenerated: true,
-      };
-    } else {
-      existingPages[pageType] = {
-        pageType,
-        blocks: [],
-        generated: false,
-        images: images || [],
-        imagesGenerated: true,
-      };
-    }
-
-    saveProjectSettings(projectPath, {
-      ...currentSettings,
-      pages: existingPages,
-    });
-
-    // Обновляем images.json для всех картинок страницы
-    if (images && Array.isArray(images)) {
-      for (const image of images) {
-        if (image.name) {
-          updateImageInJson(projectPath, image.name, {
-            alt: image.alt || "",
-            title: image.title || "",
-            src: `/images/${image.name}`,
-          });
+      if (images && Array.isArray(images)) {
+        for (const image of images) {
+          if (image.name) {
+            updateImageInJson(projectPath, image.name, {
+              alt: image.alt || "",
+              title: image.title || "",
+              src: `/images/${image.name}`,
+            });
+          }
         }
       }
-    }
+    });
 
     res.json({
       success: true,
@@ -1402,7 +1409,9 @@ router.post("/save-images", async (req, res) => {
     });
   } catch (error: any) {
     console.error("[build] Ошибка при сохранении изображений:", error);
-    res.status(500).json({
+    const status =
+      error.message === "Project settings not found" ? 404 : 500;
+    res.status(status).json({
       error: "Failed to save images",
       message: error.message,
     });
@@ -1457,7 +1466,8 @@ router.post("/save-image-presets", async (req, res) => {
 router.put("/project/:projectName", async (req, res) => {
   try {
     const { projectName } = req.params;
-    const { brand, language, country, domain, affiliateLink } = req.body;
+    const { brand, language, country, domain, affiliateLink, geoCode, geoLabel } =
+      req.body;
 
     if (!projectExists(projectName)) {
       return res.status(404).json({
@@ -1484,6 +1494,8 @@ router.put("/project/:projectName", async (req, res) => {
       country,
       domain,
       affiliateLink,
+      ...(geoCode !== undefined ? { geoCode: geoCode || null } : {}),
+      ...(geoLabel !== undefined ? { geoLabel } : {}),
     });
 
     // Получаем обновленные настройки
@@ -2012,6 +2024,13 @@ router.post("/generate-favicon", upload.single("file"), async (req, res) => {
     // Генерируем favicon
     await generateFavicons(projectPath, sourceImagePath, brand);
 
+    try {
+      syncIndexHtmlHead(projectPath);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn("[build] syncIndexHtmlHead после generate-favicon:", msg);
+    }
+
     // Удаляем временный файл если использовали upload
     if (source === "upload" && fs.existsSync(sourceImagePath)) {
       fs.unlinkSync(sourceImagePath);
@@ -2094,15 +2113,8 @@ router.post("/project/:projectName/theme", async (req, res) => {
         });
       }
 
-      // Копируем тему в проект (если еще не скопирована)
-      const themesDir = path.join(projectPath, "src", "themes");
-      const themePath = path.join(themesDir, `${theme}.css`);
-
-      if (!fs.existsSync(themePath)) {
-        copyThemeToProject(projectPath, theme);
-      }
-
-      // Обновляем index.css
+      copyThemeToProject(projectPath, theme);
+      syncProjectIndexCssFromTemplate(projectPath);
       updateIndexCSS(projectPath, theme);
     } else {
       // Кастомная тема
@@ -2115,7 +2127,7 @@ router.post("/project/:projectName/theme", async (req, res) => {
       // Сохраняем кастомную тему
       saveCustomTheme(projectPath, colors);
 
-      // Обновляем index.css для импорта castom.css
+      syncProjectIndexCssFromTemplate(projectPath);
       updateIndexCSS(projectPath, "castom");
     }
 
@@ -2135,13 +2147,109 @@ router.post("/project/:projectName/theme", async (req, res) => {
 // Получить список доступных тем
 router.get("/themes", async (req, res) => {
   try {
-    const themes = getAvailableThemes();
-    res.json({ themes });
+    res.json({ themes: getThemesCatalog() });
   } catch (error: any) {
     console.error("[build] Ошибка при получении списка тем:", error);
     res.status(500).json({
       error: "Failed to get themes",
       message: error.message,
+    });
+  }
+});
+
+// Загрузка production-сборки (dist) на сервер по SFTP / FTP
+router.post("/project/:projectName/upload-to-server", async (req, res) => {
+  try {
+    const { projectName } = req.params;
+    const { host, port, username, password, remotePath } = req.body as {
+      host?: string;
+      port?: number | string;
+      username?: string;
+      password?: string;
+      remotePath?: string;
+    };
+
+    if (!projectName) {
+      return res.status(400).json({ error: "Missing required field: projectName" });
+    }
+
+    if (!projectExists(projectName)) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const hostTrim = typeof host === "string" ? host.trim() : "";
+    const userTrim = typeof username === "string" ? username.trim() : "";
+    const pass = typeof password === "string" ? password : "";
+
+    if (!hostTrim) {
+      return res.status(400).json({ error: "Укажите хост сервера" });
+    }
+    if (!userTrim) {
+      return res.status(400).json({ error: "Укажите имя пользователя" });
+    }
+    if (!pass) {
+      return res.status(400).json({ error: "Укажите пароль" });
+    }
+
+    const portNum = Number(port);
+    const resolvedPort =
+      Number.isFinite(portNum) && portNum > 0 && portNum <= 65535
+        ? Math.floor(portNum)
+        : 22;
+
+    const projectPath = getProjectPath(projectName);
+    const currentSettings = getProjectSettings(projectName);
+    if (!currentSettings) {
+      return res.status(404).json({ error: "Project settings not found" });
+    }
+
+    console.log(
+      `[build] Сборка dist перед загрузкой на сервер: ${projectName} → ${hostTrim}:${resolvedPort}`
+    );
+    const distPath = await ensureProjectDistBuilt(projectPath);
+
+    const effectiveRemotePath =
+      typeof remotePath === "string" && remotePath.trim()
+        ? remotePath.trim()
+        : "/";
+
+    const { filesUploaded, protocol } = await uploadDirectoryToServer(
+      {
+        host: hostTrim,
+        port: resolvedPort,
+        username: userTrim,
+        password: pass,
+        remotePath: effectiveRemotePath,
+      },
+      distPath
+    );
+
+    saveProjectSettings(projectPath, {
+      ...currentSettings,
+      serverUpload: {
+        host: hostTrim,
+        port: resolvedPort,
+        username: userTrim,
+        remotePath: effectiveRemotePath,
+      },
+    });
+
+    res.json({
+      success: true,
+      message:
+        `Загружено файлов: ${filesUploaded} (${protocol.toUpperCase()}) → ${effectiveRemotePath}. ` +
+        `Откройте на сервере этот каталог и убедитесь, что он совпадает с тем, что отдаёт веб‑сервер по IP или домену (document root nginx/apache, public_html у хостинг‑панели). ` +
+        `Если совпадает, а вы всё равно видите старый сайт — сбросьте кеш браузера (Ctrl+F5) или CDN. ` +
+        `Перезагрузка веб‑сервера не выполняется — это нужно делать только если ваш хостинг так требует.`,
+      filesUploaded,
+      protocol,
+      remotePath: effectiveRemotePath,
+    });
+  } catch (error: any) {
+    console.error("[build] Ошибка загрузки на сервер:", error);
+    res.status(500).json({
+      error: "Failed to upload to server",
+      message: error.message || String(error),
     });
   }
 });
@@ -2239,6 +2347,158 @@ router.get("/download-build/:projectName", async (req, res) => {
     console.error("[build] Ошибка при создании архива build:", error);
     res.status(500).json({
       error: "Failed to create build archive",
+      message: error.message,
+    });
+  }
+});
+
+// Saved deploy servers (password never stored)
+router.get("/deploy-servers", (_req, res) => {
+  try {
+    res.json({ success: true, servers: listDeployServers() });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to list deploy servers",
+      message: error.message,
+    });
+  }
+});
+
+router.post("/deploy-servers", (req, res) => {
+  try {
+    const { id, label, host, port, username, remotePath } = req.body as {
+      id?: string;
+      label?: string;
+      host?: string;
+      port?: number | string;
+      username?: string;
+      remotePath?: string;
+    };
+    if (!host?.trim() || !username?.trim()) {
+      return res.status(400).json({
+        error: "Укажите host и username",
+      });
+    }
+    const portNum = Number(port);
+    const resolvedPort =
+      Number.isFinite(portNum) && portNum > 0 && portNum <= 65535
+        ? Math.floor(portNum)
+        : 22;
+    const server = upsertDeployServer({
+      id,
+      label: label || host.trim(),
+      host: host.trim(),
+      port: resolvedPort,
+      username: username.trim(),
+      remotePath: remotePath?.trim() || "/",
+    });
+    res.json({ success: true, server });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to save deploy server",
+      message: error.message,
+    });
+  }
+});
+
+// Auto-generation status (polling)
+router.get("/project/:projectName/auto-status", (req, res) => {
+  try {
+    const { projectName } = req.params;
+    if (!projectName || !projectExists(projectName)) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    const state = getAutoGenerationState(projectName);
+    res.json({
+      success: true,
+      running: isAutoGenerationRunning(projectName),
+      autoGeneration: state,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      error: "Failed to get auto-generation status",
+      message: error.message,
+    });
+  }
+});
+
+// Kick off full auto-generation pipeline (background)
+router.post("/project/:projectName/auto-generate", async (req, res) => {
+  try {
+    const { projectName } = req.params;
+    const body = req.body as {
+      server?: {
+        host?: string;
+        port?: number | string;
+        username?: string;
+        password?: string;
+        remotePath?: string;
+        savedServerId?: string;
+      };
+      globalKeywords?: string;
+      customPages?: Array<{ name: string; slug?: string; blocks?: string[] }>;
+    };
+
+    if (!projectName || !projectExists(projectName)) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    if (isAutoGenerationRunning(projectName)) {
+      return res.status(409).json({
+        error: "Auto-generation already running",
+        message: "Автогенерация уже выполняется для этого проекта",
+      });
+    }
+
+    const settings = getProjectSettings(projectName);
+    const stored = (settings as Record<string, unknown> | null)?.autoGeneration as
+      | { options?: AutoGenerationOptions }
+      | undefined;
+
+    let server = body.server || stored?.options?.server;
+    if (!server?.host || !server?.username || !server?.password) {
+      return res.status(400).json({
+        error: "Missing server credentials",
+        message: "Укажите хост, пользователя и пароль сервера для деплоя",
+      });
+    }
+
+    const portNum = Number(server.port);
+    const options: AutoGenerationOptions = {
+      server: {
+        host: server.host.trim(),
+        port:
+          Number.isFinite(portNum) && portNum > 0 && portNum <= 65535
+            ? Math.floor(portNum)
+            : 22,
+        username: server.username.trim(),
+        password: server.password,
+        remotePath: server.remotePath?.trim() || "/",
+        savedServerId: server.savedServerId,
+      },
+      globalKeywords: body.globalKeywords?.trim() || stored?.options?.globalKeywords,
+      customPages:
+        normalizeAutoCustomPages(body.customPages) ||
+        normalizeAutoCustomPages(
+          (settings as Record<string, unknown> | null)?.customPages
+        ) ||
+        stored?.options?.customPages,
+    };
+
+    res.json({
+      success: true,
+      message: "Автогенерация запущена",
+      projectName,
+    });
+
+    runAutoGeneration(projectName, options).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[auto-generation] ${projectName} failed:`, msg);
+    });
+  } catch (error: any) {
+    console.error("[build] auto-generate:", error);
+    res.status(500).json({
+      error: "Failed to start auto-generation",
       message: error.message,
     });
   }

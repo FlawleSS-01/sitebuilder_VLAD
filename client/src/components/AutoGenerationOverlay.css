@@ -1,0 +1,110 @@
+.auto-gen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auto-gen-panel {
+  background: #222;
+  color: #fff;
+  border-radius: 10px;
+  max-width: 480px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.auto-gen-panel h2 {
+  margin: 0 0 16px;
+  font-size: 1.25rem;
+}
+
+.auto-gen-error {
+  background: #fde8e8;
+  border: 1px solid #f5c2c2;
+  color: #9b1c1c;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.auto-gen-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.auto-gen-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+}
+
+.auto-gen-step:last-child {
+  border-bottom: none;
+}
+
+.auto-gen-step-icon {
+  width: 20px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.auto-gen-step--running .auto-gen-step-icon {
+  color: #007bff;
+}
+
+.auto-gen-step--done .auto-gen-step-icon {
+  color: #28a745;
+}
+
+.auto-gen-step--error .auto-gen-step-icon {
+  color: #dc3545;
+}
+
+.auto-gen-step-error {
+  display: block;
+  width: 100%;
+  font-size: 12px;
+  color: #dc3545;
+  margin-top: 4px;
+}
+
+.auto-gen-hint {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.auto-gen-cost {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+  font-size: 14px;
+}
+
+.auto-gen-cost-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #555;
+}
+
+.auto-gen-cost-panel {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}

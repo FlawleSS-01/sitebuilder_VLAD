@@ -209,7 +209,9 @@ const downloadImageAsBase64 = async (url: string): Promise<string> => {
 export const generateImageRunware = async (
   prompt: string,
   size: ImageSizeOption,
-  modelOverride?: string
+  modelOverride?: string,
+  /** Для wordmark-логотипов и т.п.: не использовать глобальный negative с запретом текста */
+  negativePromptOverride?: string
 ): Promise<string> => {
   const cfg = getConfig();
 
@@ -228,7 +230,7 @@ export const generateImageRunware = async (
     taskUUID: crypto.randomUUID(),
     model,
     positivePrompt: prompt,
-    negativePrompt: cfg.negativePrompt,
+    negativePrompt: negativePromptOverride ?? cfg.negativePrompt,
     width: finalWidth,
     height: finalHeight,
     numberResults: 1,
@@ -263,6 +265,10 @@ export const generateImageRunware = async (
   let lastError: unknown;
   const maxRetries = cfg.maxRetries!;
   const retryDelayMs = cfg.retryDelayMs!;
+  const requestTimeoutMs = Math.max(
+    30_000,
+    parseInt(process.env.RUNWARE_REQUEST_TIMEOUT_MS || "180000", 10) || 180_000
+  );
 
   while (attempt < maxRetries) {
     attempt++;
@@ -274,6 +280,7 @@ export const generateImageRunware = async (
           Authorization: `Bearer ${cfg.apiKey}`,
         },
         body: JSON.stringify([task]),
+        signal: AbortSignal.timeout(requestTimeoutMs),
       });
 
       if (!response.ok) {

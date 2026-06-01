@@ -1,0 +1,28 @@
+:root {
+  --sb-style-id: "spotlight";
+  --sb-hero-align: center;
+  --sb-bg: #0a1628;
+  --sb-bg-2: #7c3aed;
+  --sb-fg: #f5f5f5;
+  --sb-fg-soft: rgba(245, 245, 245, 0.82);
+  --sb-accent: #00d4aa;
+  --sb-accent-2: #7c3aed;
+  --sb-accent-3: #00d4aa;
+  --sb-card: rgba(255,255,255,0.06);
+  --sb-card-border: rgba(255,255,255,0.12);
+  --sb-header-bg: rgba(0,0,0,0.75);
+  --sb-hero-overlay: linear-gradient(
+    115deg,
+    rgba(10, 22, 40, 0.94) 0%,
+    rgba(10, 22, 40, 0.72) 48%,
+    rgba(124, 58, 237, 0.38) 100%
+  );
+  --main-color: #7c3aed;
+  --text-color: #f5f5f5;
+  --hero-color: #f5f5f5;
+  --card-background: #00d4aa;
+  --mainBtn-background: #00d4aa;
+  --mainBtn-color: #0a1628;
+  --faq-color-active: #00d4aa;
+}
+body { background: var(--sb-bg); color: var(--sb-fg); }

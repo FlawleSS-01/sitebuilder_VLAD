@@ -3,6 +3,7 @@ import {
   generateImage,
   generatePageImages,
   generateAllProjectImages,
+  getImageGenerationJobs,
   generateSingleImage,
   uploadImage,
   uploadLogo,
@@ -26,7 +27,10 @@ router.post("/generate", generateImage);
 // Генерация изображений для страницы (3 картинки)
 router.post("/generate-page-images", generatePageImages);
 
-// Массовая генерация для всех страниц проекта (по наличию JSON / флагам в settings)
+// Список страниц, для которых можно генерировать картинки
+router.get("/image-jobs/:projectName", getImageGenerationJobs);
+
+// Массовая генерация для всех страниц проекта (долгий запрос; UI предпочитает по одной странице)
 router.post("/generate-all-project-images", generateAllProjectImages);
 
 // Генерация одной картинки (перегенерация)

@@ -4,8 +4,7 @@ import {
   getTemplateDisplayName,
   getAllTemplateIds,
 } from "../utils/templates.js";
-
-const API_URL = import.meta.env.VITE_API_URL || "";
+import { fetchJson } from "../utils/api";
 
 interface CustomPageModalProps {
   isOpen: boolean;
@@ -181,8 +180,8 @@ const CustomPageModal: React.FC<CustomPageModalProps> = ({
       const timeoutId = setTimeout(() => controller.abort(), 300000);
 
       // Генерируем кастомную страницу с использованием общей модели
-      const response = await fetch(
-        `${API_URL}/api/text-generation/generate-custom`,
+      const { response, data } = await fetchJson(
+        "/api/text-generation/generate-custom",
         {
           method: "POST",
           headers: {
@@ -206,8 +205,6 @@ const CustomPageModal: React.FC<CustomPageModalProps> = ({
 
       clearTimeout(timeoutId);
 
-      const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.error || "Ошибка при генерации страницы");
       }
@@ -216,32 +213,33 @@ const CustomPageModal: React.FC<CustomPageModalProps> = ({
       const customPageId = pageName.toLowerCase().replace(/[^a-z0-9]/g, "-");
 
       // Сохраняем страницу в проект
-      const saveResponse = await fetch(`${API_URL}/api/build/save-pages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          projectName: projectName,
-          pages: {
-            [customPageId]: data.data,
+      const { response: saveResponse, data: saveData } = await fetchJson(
+        "/api/build/save-pages",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-          pagesInfo: {
-            [customPageId]: {
-              pageType: customPageId,
-              pageName: pageName.trim(),
-              displayName: displayName.trim() || pageName.trim(),
-              blocks: selectedBlocks,
-              generated: true,
-              isCustom: true,
-              blockTemplates: blockTemplates, // Сохраняем выбранные шаблоны
-              blockKeywords: blockKeywords, // Сохраняем ключевые слова блоков для последующих перегенераций
+          body: JSON.stringify({
+            projectName: projectName,
+            pages: {
+              [customPageId]: data.data,
             },
-          },
-        }),
-      });
-
-      const saveData = await saveResponse.json();
+            pagesInfo: {
+              [customPageId]: {
+                pageType: customPageId,
+                pageName: pageName.trim(),
+                displayName: displayName.trim() || pageName.trim(),
+                blocks: selectedBlocks,
+                generated: true,
+                isCustom: true,
+                blockTemplates: blockTemplates, // Сохраняем выбранные шаблоны
+                blockKeywords: blockKeywords, // Сохраняем ключевые слова блоков для последующих перегенераций
+              },
+            },
+          }),
+        }
+      );
 
       if (!saveResponse.ok) {
         throw new Error(saveData.error || "Не удалось сохранить страницу");
@@ -249,6 +247,7 @@ const CustomPageModal: React.FC<CustomPageModalProps> = ({
 
       onSuccess();
       onClose();
+      window.location.reload();
     } catch (err: any) {
       setError(err.message || "Произошла ошибка при генерации");
       console.error("Error:", err);
@@ -267,8 +266,8 @@ const CustomPageModal: React.FC<CustomPageModalProps> = ({
     setGeneratingFaq(true);
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/text-generation/generate-faq`,
+      const { response, data } = await fetchJson(
+        "/api/text-generation/generate-faq",
         {
           method: "POST",
           headers: {
@@ -284,25 +283,24 @@ const CustomPageModal: React.FC<CustomPageModalProps> = ({
         }
       );
 
-      const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.error || "Ошибка при генерации FAQ");
       }
 
       // Сохраняем FAQ в проект
-      const saveResponse = await fetch(`${API_URL}/api/build/save-pages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          projectName: projectName,
-          faq: data.data,
-        }),
-      });
-
-      const saveData = await saveResponse.json();
+      const { response: saveResponse, data: saveData } = await fetchJson(
+        "/api/build/save-pages",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            projectName: projectName,
+            faq: data.data,
+          }),
+        }
+      );
 
       if (!saveResponse.ok) {
         throw new Error(saveData.error || "Не удалось сохранить FAQ");
@@ -310,6 +308,7 @@ const CustomPageModal: React.FC<CustomPageModalProps> = ({
 
       onSuccess();
       onClose();
+      window.location.reload();
     } catch (err: any) {
       setError(err.message || "Произошла ошибка при генерации FAQ");
       console.error("Error:", err);

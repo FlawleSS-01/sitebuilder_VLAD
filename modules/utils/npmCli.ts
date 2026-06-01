@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "child_process";
+import { spawn, type ChildProcess, type StdioOptions } from "child_process";
 import fs from "fs";
 import path from "path";
 
@@ -35,6 +35,8 @@ function quoteForCmdMeta(s: string): string {
 /**
  * Запуск npm без shell:true (Node склеивает команду без кавычек — путь режется на «C:\Program»).
  * Основной путь: node + npm-cli.js (как у установки из nodejs.org). Иначе: cmd /c call «…npm.cmd» …
+ * @param ignoreStdin при stdio: "inherit" — не привязывает stdin потомка к TTY родителя.
+ * На Windows вложенный `npm`/оболочка часто блокируется в ожидании «ввода», пока сборка реально уже идёт.
  */
 export function runNpmCli(
   args: string[],
@@ -42,14 +44,19 @@ export function runNpmCli(
     cwd: string;
     env?: NodeJS.ProcessEnv;
     stdio: "inherit" | "pipe";
+    ignoreStdin?: boolean;
   }
 ): ChildProcess {
+  const resolvedStdio: StdioOptions =
+    options.ignoreStdin && options.stdio === "inherit"
+      ? ["ignore", "inherit", "inherit"]
+      : options.stdio;
   const cliJs = resolveNpmCliScriptPath();
   if (cliJs) {
     return spawn(process.execPath, [cliJs, ...args], {
       cwd: options.cwd,
       env: options.env,
-      stdio: options.stdio,
+      stdio: resolvedStdio,
       shell: false,
       windowsHide: true,
     });
@@ -64,7 +71,7 @@ export function runNpmCli(
     return spawn(comspec, ["/d", "/s", "/c", line], {
       cwd: options.cwd,
       env: options.env,
-      stdio: options.stdio,
+      stdio: resolvedStdio,
       windowsHide: true,
     });
   }
@@ -72,7 +79,7 @@ export function runNpmCli(
   return spawn(resolveNpmExecutable(), args, {
     cwd: options.cwd,
     env: options.env,
-    stdio: options.stdio,
+    stdio: resolvedStdio,
     shell: false,
     windowsHide: true,
   });

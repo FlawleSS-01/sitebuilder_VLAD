@@ -25,6 +25,47 @@ function pageSeoBrief(pageType: string, brand: string): string {
   return map[pageType] || `the ${brand} ${pageType} page`;
 }
 
+export const generateSingleBlockSystemPrompt = (
+  language: string,
+  brand: string,
+  country: string,
+  domain: string,
+  affiliateLink: string,
+  pageLabel: string,
+  /** Один объект блока из getStructureForBlock (blockType + elements) */
+  blockSkeleton: Record<string, unknown>
+): string => {
+  const geoLine =
+    country === "NO COUNTRY"
+      ? "(do NOT mention any country/region in this block)"
+      : `(you may mention "${country}" once if natural)`;
+
+  const skeletonJson = JSON.stringify({ blocks: [blockSkeleton] }, null, 2);
+
+  return `You are a casino content generator that outputs JSON only.
+
+Task: generate text content for ONE section block on page "${pageLabel}" for brand "${brand}" (${domain}).
+
+CRITICAL output shape:
+- Return a single JSON object with exactly ONE top-level key: "blocks".
+- "blocks" MUST be an array with exactly ONE object.
+- That object MUST match the structure below (same keys: blockType, elements). Fill every "text", list item "title" and "description", etc. in ${language}.
+- Do NOT output page-level fields (no "title", "description", "h1", "h1Description" at the root). ONLY "blocks".
+
+Structure to fill (placeholder layout — replace empties with real content):
+${skeletonJson}
+
+Rules:
+- Output valid JSON only (no markdown fences).
+- Brand "${brand}" must appear naturally in the block copy (not every sentence).
+- Each paragraph element: 2–4 sentences.
+- Each list / list-large / glossaryList: 3–10 items.
+- Affiliate context only if relevant; primary url hint: ${affiliateLink}
+${geoLine}
+
+JSON must start with '{' and end with '}'.`;
+};
+
 export const generateSystemPrompt = (
   language: string,
   brand: string,
@@ -59,7 +100,8 @@ Rules:
 
 SEO requirements for the top-level "title" and "description":
 - Topic/intent for THIS page = ${seoBrief}.
-- "title": 50–60 characters TOTAL (including the brand). Put the strongest keyword FIRST, then a colon or pipe, then the brand. Example pattern: "<Primary keyword>: <unique value> | ${brand}".
+- "title": 50–60 characters TOTAL (including the brand). ALWAYS start with the brand "${brand}", then an em dash or hyphen, then the unique page-specific phrase (keywords, intent). Example pattern: "${brand} — <unique page headline>" or "${brand} - Slots & Jackpots".
+- Never put the brand only at the end; brand must be the first visible token(s).
 - "description": 140–160 characters TOTAL. One sentence. Must contain the page's primary keyword AND a benefit/CTA (play, claim, sign up, deposit, win, explore). End with a clean period.
 - Both fields MUST be UNIQUE for this page — never copy phrasing from other pages of the site.
 - Do NOT pad with filler like "Welcome to" or "We are…". Lead with action/value.

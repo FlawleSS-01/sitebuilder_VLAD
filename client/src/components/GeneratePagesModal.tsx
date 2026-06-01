@@ -8,8 +8,7 @@ import {
   promptLanguageForLocale,
   formatTextGenError,
 } from "../utils/locale.js";
-
-const API_URL = import.meta.env.VITE_API_URL || "";
+import { fetchJson } from "../utils/api";
 
 type PageType =
   | "homepage"
@@ -129,6 +128,27 @@ const AVAILABLE_BLOCKS: Record<PageType, string[]> = {
   login: ["security", "features", "forgot"],
 };
 
+/** Склеивает ключевые слова блока с общими для всех страниц (перед запросом generate). */
+function mergeGlobalBlockKeywords(
+  blocks: string[],
+  keywordsForPage: Record<string, string>,
+  globalKeywordsRaw: string
+): Record<string, string> {
+  const globalTrim = globalKeywordsRaw.trim();
+  const filteredKeywords: Record<string, string> = {};
+  blocks.forEach((block) => {
+    const perBlock =
+      typeof keywordsForPage[block] === "string"
+        ? keywordsForPage[block].trim()
+        : "";
+    let merged = "";
+    if (perBlock && globalTrim) merged = `${perBlock}, ${globalTrim}`;
+    else merged = perBlock || globalTrim;
+    if (merged) filteredKeywords[block] = merged;
+  });
+  return filteredKeywords;
+}
+
 interface GeneratePagesModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -176,6 +196,8 @@ const GeneratePagesModal: React.FC<GeneratePagesModalProps> = ({
   >({}); // Индекс перетаскиваемого блока для каждой страницы
   const [generateFaq, setGenerateFaq] = useState(false); // Генерировать ли FAQ
   const [faqCount, setFaqCount] = useState<number>(5); // Количество вопросов FAQ
+  /** Общие ключевые слова (через запятую) — добавляются к каждому блоку каждой страницы при генерации. */
+  const [globalKeywordsAllPages, setGlobalKeywordsAllPages] = useState("");
   const [localeScope, setLocaleScope] = useState<"current" | "all">("all");
   const [currentLocale, setCurrentLocale] = useState<string>("en");
   const [isAutoMode, setIsAutoMode] = useState(true);
@@ -497,24 +519,20 @@ const GeneratePagesModal: React.FC<GeneratePagesModalProps> = ({
             }
           }
 
-          // Кастомные блоки могут иметь пользовательские ключевые слова —
-          // отправляем их в бэкенд, чтобы GPT генерировал блок именно
-          // вокруг этих тем. Для авторежима blockKeywords не задаются.
+          // Ключевые слова блока + общие слова для всех страниц (если указаны).
           const keywordsForPage = pageBlockKeywords[pageType] || {};
-          const filteredKeywords: Record<string, string> = {};
-          blocks.forEach((block) => {
-            const value = keywordsForPage[block];
-            if (typeof value === "string" && value.trim()) {
-              filteredKeywords[block] = value.trim();
-            }
-          });
+          const filteredKeywords = mergeGlobalBlockKeywords(
+            blocks,
+            keywordsForPage,
+            globalKeywordsAllPages
+          );
           if (Object.keys(filteredKeywords).length > 0) {
             requestBody.blockKeywords = filteredKeywords;
           }
 
           try {
-            const response = await fetch(
-              `${API_URL}/api/text-generation/generate`,
+            const { response, data } = await fetchJson(
+              "/api/text-generation/generate",
               {
                 method: "POST",
                 headers: {
@@ -526,8 +544,6 @@ const GeneratePagesModal: React.FC<GeneratePagesModalProps> = ({
             );
 
             clearTimeout(timeoutId);
-
-            const data = await response.json();
 
             if (!response.ok) {
               throw new Error(
@@ -568,8 +584,8 @@ const GeneratePagesModal: React.FC<GeneratePagesModalProps> = ({
       let faqData = null;
       if (generateFaq) {
         try {
-          const faqResponse = await fetch(
-            `${API_URL}/api/text-generation/generate-faq`,
+          const { response: faqResponse, data: faqResult } = await fetchJson(
+            "/api/text-generation/generate-faq",
             {
               method: "POST",
               headers: {
@@ -583,8 +599,6 @@ const GeneratePagesModal: React.FC<GeneratePagesModalProps> = ({
               }),
             }
           );
-
-          const faqResult = await faqResponse.json();
 
           if (!faqResponse.ok) {
             throw new Error(formatTextGenError(faqResult) || "Ошибка FAQ");
@@ -642,15 +656,16 @@ const GeneratePagesModal: React.FC<GeneratePagesModalProps> = ({
         savePayload.pages = allResults;
       }
 
-      const saveResponse = await fetch(`${API_URL}/api/build/save-pages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(savePayload),
-      });
-
-      const saveData = await saveResponse.json();
+      const { response: saveResponse, data: saveData } = await fetchJson(
+        "/api/build/save-pages",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(savePayload),
+        }
+      );
 
       if (!saveResponse.ok) {
         throw new Error(saveData.error || "Не удалось сохранить страницы");
@@ -670,6 +685,7 @@ const GeneratePagesModal: React.FC<GeneratePagesModalProps> = ({
       if (previewUrl) {
         window.open(previewUrl, "_blank", "noopener,noreferrer");
       }
+      window.location.reload();
     } catch (err: any) {
       setError(err.message || "Произошла ошибка при генерации");
       console.error("Error:", err);
@@ -774,6 +790,30 @@ const GeneratePagesModal: React.FC<GeneratePagesModalProps> = ({
               </strong>
             </p>
           ) : null}
+
+          <div className="global-keywords-all-pages">
+            <label
+              htmlFor="global-keywords-all-pages-input"
+              className="global-keywords-all-pages-label"
+            >
+              Общие ключевые слова для всех страниц
+            </label>
+            <input
+              id="global-keywords-all-pages-input"
+              type="text"
+              className="block-keywords-input-manual global-keywords-all-pages-input"
+              value={globalKeywordsAllPages}
+              onChange={(e) => setGlobalKeywordsAllPages(e.target.value)}
+              placeholder="Через запятую: бонус, VIP, мобильное приложение…"
+              disabled={generating}
+            />
+            <small className="global-keywords-all-pages-hint">
+              Дополняют промпт для{" "}
+              <strong>каждого</strong> выбранного блока на{" "}
+              <strong>каждой</strong> генерируемой странице. В ручном режиме
+              суммируются с ключевыми словами конкретного блока.
+            </small>
+          </div>
 
           {error && (
             <div className="error-message">
