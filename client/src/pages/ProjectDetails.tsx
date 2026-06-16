@@ -20,6 +20,12 @@ import FaviconModal from "../components/FaviconModal";
 import ThemeModal from "../components/ThemeModal";
 import AutoGenerationOverlay from "../components/AutoGenerationOverlay";
 import GenerationCostPanel from "../components/GenerationCostPanel";
+import SeoEntityPanel, {
+  formToSeoEntityPayload,
+  seoEntityToForm,
+  type SeoEntityData,
+  type SeoEntityFormState,
+} from "../components/SeoEntityPanel";
 import "./ProjectDetails.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
@@ -114,6 +120,7 @@ interface ProjectSettings {
       total: number;
     };
   };
+  seoEntity?: SeoEntityData;
 }
 
 type PageType =
@@ -155,6 +162,9 @@ const ProjectDetails: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<ProjectSettings>>({});
+  const [editSeoForm, setEditSeoForm] = useState<SeoEntityFormState>(
+    seoEntityToForm(null)
+  );
   const [showRegenerateWarning, setShowRegenerateWarning] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [showCustomPageModal, setShowCustomPageModal] = useState(false);
@@ -369,6 +379,7 @@ const ProjectDetails: React.FC = () => {
         domain: updatedProject.domain,
         affiliateLink: updatedProject.affiliateLink,
       });
+      setEditSeoForm(seoEntityToForm(updatedProject.seoEntity));
 
       if (projectName) {
         setLogoUrl(
@@ -759,6 +770,7 @@ const ProjectDetails: React.FC = () => {
   const handleEdit = () => {
     if (project) {
       applyEditGeoFromProject(project);
+      setEditSeoForm(seoEntityToForm(project.seoEntity));
     }
     setIsEditing(true);
   };
@@ -774,6 +786,7 @@ const ProjectDetails: React.FC = () => {
         domain: project.domain,
         affiliateLink: project.affiliateLink,
       });
+      setEditSeoForm(seoEntityToForm(project.seoEntity));
       applyEditGeoFromProject(project);
     }
   };
@@ -884,6 +897,7 @@ const ProjectDetails: React.FC = () => {
             geoLabel: geoFields.geoLabel,
             domain: editData.domain,
             affiliateLink: editData.affiliateLink,
+            seoEntity: formToSeoEntityPayload(editSeoForm),
           }),
         }
       );
@@ -1146,6 +1160,12 @@ const ProjectDetails: React.FC = () => {
       if (!ok) return;
     }
 
+    // Длинные заливки (сборка dist + FTP) защищаем таймаутом, чтобы кнопка
+    // не зависала навсегда, если соединение «повисло» и ответ не пришёл.
+    const controller = new AbortController();
+    const timeoutMs = 30 * 60 * 1000;
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       setUploadingToServer(true);
       const { response, data } = await fetchJson(
@@ -1160,6 +1180,7 @@ const ProjectDetails: React.FC = () => {
             password: serverPassword,
             remotePath: serverRemotePath.trim() || "/",
           }),
+          signal: controller.signal,
         }
       );
 
@@ -1169,11 +1190,20 @@ const ProjectDetails: React.FC = () => {
         );
       }
 
-      await loadProject();
+      // Сначала показываем результат и снимаем «работу», затем обновляем проект
+      // в фоне — чтобы сообщение точно появилось, даже если refresh медленный.
       alert(data.message || "Сайт загружен на сервер");
+      void loadProject();
     } catch (err: any) {
-      alert(err.message || "Ошибка при загрузке на сервер");
+      if (err?.name === "AbortError") {
+        alert(
+          "Загрузка прервана по таймауту. Файлы могли успешно залиться — проверьте сервер и при необходимости повторите."
+        );
+      } else {
+        alert(err.message || "Ошибка при загрузке на сервер");
+      }
     } finally {
+      window.clearTimeout(timeoutId);
       setUploadingToServer(false);
     }
   };
@@ -1827,7 +1857,13 @@ const ProjectDetails: React.FC = () => {
     <div className="project-details-container">
       {project.autoGeneration?.mode === "auto" &&
         (project.autoGeneration.status === "running" ||
-          project.autoGeneration.status === "pending") && (
+          project.autoGeneration.status === "pending") &&
+        // Защита: если все шаги уже "done" (а статус почему-то завис на running),
+        // не показываем оверлей — генерация фактически завершена.
+        !(
+          (project.autoGeneration.steps?.length ?? 0) > 0 &&
+          project.autoGeneration.steps!.every((s) => s.status === "done")
+        ) && (
           <AutoGenerationOverlay
             steps={
               (project.autoGeneration.steps || []).map((s) => ({
@@ -2458,6 +2494,14 @@ const ProjectDetails: React.FC = () => {
               </span>
             )}
           </div>
+
+          <SeoEntityPanel
+            form={editSeoForm}
+            onChange={(patch) =>
+              setEditSeoForm((f) => ({ ...f, ...patch }))
+            }
+            readOnly={!isEditing}
+          />
 
           <div className="info-row">
             <span className="info-label">Приложение (APK):</span>

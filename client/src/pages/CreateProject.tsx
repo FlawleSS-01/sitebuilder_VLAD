@@ -1006,7 +1006,27 @@ const CreateProject: React.FC = () => {
                 <select
                   id="deployServerSelect"
                   value={selectedServerId}
-                  onChange={(e) => setSelectedServerId(e.target.value)}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setSelectedServerId(id);
+                    if (id === "__new__") {
+                      setServerHost("");
+                      setServerPort("22");
+                      setServerUsername("");
+                      setServerRemotePath("/");
+                    } else {
+                      const srv = deployServers.find((s) => s.id === id);
+                      if (srv) {
+                        setServerHost(srv.host);
+                        setServerPort(String(srv.port));
+                        setServerUsername(srv.username);
+                        setServerRemotePath(srv.remotePath || "/");
+                        setSaveServerAfter(false);
+                      }
+                    }
+                    // Пароль никогда не хранится — его всегда вводят заново.
+                    setServerPassword("");
+                  }}
                   style={{ marginBottom: 12, display: "block", width: "100%" }}
                 >
                   <option value="__new__">Новый сервер</option>
@@ -1016,57 +1036,98 @@ const CreateProject: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                {selectedServerId !== "__new__" && (
+                  <p
+                    style={{
+                      margin: "0 0 8px",
+                      fontSize: 13,
+                      color: "#666",
+                    }}
+                  >
+                    Сервер сохранён — нужно ввести только пароль (он не
+                    хранится в целях безопасности).
+                  </p>
+                )}
                 <input
                   type="text"
                   placeholder="Хост / IP"
                   value={serverHost}
                   onChange={(e) => setServerHost(e.target.value)}
-                  style={{ marginBottom: 8, width: "100%" }}
+                  readOnly={selectedServerId !== "__new__"}
+                  style={{
+                    marginBottom: 8,
+                    width: "100%",
+                    background:
+                      selectedServerId !== "__new__" ? "#000" : undefined,
+                  }}
                 />
                 <input
                   type="text"
                   placeholder="Порт (22 = SFTP)"
                   value={serverPort}
                   onChange={(e) => setServerPort(e.target.value)}
-                  style={{ marginBottom: 8, width: "100%" }}
+                  readOnly={selectedServerId !== "__new__"}
+                  style={{
+                    marginBottom: 8,
+                    width: "100%",
+                    background:
+                      selectedServerId !== "__new__" ? "#000" : undefined,
+                  }}
                 />
                 <input
                   type="text"
                   placeholder="Имя пользователя"
                   value={serverUsername}
                   onChange={(e) => setServerUsername(e.target.value)}
-                  style={{ marginBottom: 8, width: "100%" }}
+                  readOnly={selectedServerId !== "__new__"}
+                  style={{
+                    marginBottom: 8,
+                    width: "100%",
+                    background:
+                      selectedServerId !== "__new__" ? "#000" : undefined,
+                  }}
                 />
                 <input
                   type="password"
                   placeholder="Пароль"
                   value={serverPassword}
                   onChange={(e) => setServerPassword(e.target.value)}
+                  autoFocus={selectedServerId !== "__new__"}
                   style={{ marginBottom: 8, width: "100%" }}
                 />
                 <input
                   type="text"
-                  placeholder="Путь на сервере (например /var/www/html)"
+                  placeholder="Путь на сервере (пусто = автоопределение)"
                   value={serverRemotePath}
                   onChange={(e) => setServerRemotePath(e.target.value)}
-                  style={{ marginBottom: 8, width: "100%" }}
+                  readOnly={selectedServerId !== "__new__"}
+                  style={{
+                    marginBottom: 8,
+                    width: "100%",
+                    background:
+                      selectedServerId !== "__new__" ? "#000" : undefined,
+                  }}
                 />
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={saveServerAfter}
-                    onChange={(e) => setSaveServerAfter(e.target.checked)}
-                  />{" "}
-                  Сохранить сервер (без пароля)
-                </label>
-                {saveServerAfter && (
-                  <input
-                    type="text"
-                    placeholder="Метка сервера"
-                    value={serverLabel}
-                    onChange={(e) => setServerLabel(e.target.value)}
-                    style={{ marginTop: 8, width: "100%" }}
-                  />
+                {selectedServerId === "__new__" && (
+                  <>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={saveServerAfter}
+                        onChange={(e) => setSaveServerAfter(e.target.checked)}
+                      />{" "}
+                      Сохранить сервер (без пароля)
+                    </label>
+                    {saveServerAfter && (
+                      <input
+                        type="text"
+                        placeholder="Метка сервера"
+                        value={serverLabel}
+                        onChange={(e) => setServerLabel(e.target.value)}
+                        style={{ marginTop: 8, width: "100%" }}
+                      />
+                    )}
+                  </>
                 )}
               </div>
 

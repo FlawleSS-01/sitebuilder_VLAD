@@ -4,7 +4,13 @@
  */
 
 // Типы элементов
-type ElementType = "h2" | "paragraph" | "list" | "list-large" | "glossaryList";
+type ElementType =
+  | "h2"
+  | "paragraph"
+  | "list"
+  | "list-large"
+  | "glossaryList"
+  | "faq";
 
 interface Element {
   type: ElementType;
@@ -77,6 +83,23 @@ export const STRUCTURE_TEMPLATES: Record<string, StructureTemplate> = {
       {
         type: "list",
         items: [{ title: "", description: "" }],
+      },
+    ],
+  },
+  // h2 + FAQ (минимум 5 вопросов/ответов)
+  faq_block: {
+    id: "faq_block",
+    elements: [
+      { type: "h2" },
+      {
+        type: "faq",
+        items: [
+          { title: "", description: "" },
+          { title: "", description: "" },
+          { title: "", description: "" },
+          { title: "", description: "" },
+          { title: "", description: "" },
+        ],
       },
     ],
   },

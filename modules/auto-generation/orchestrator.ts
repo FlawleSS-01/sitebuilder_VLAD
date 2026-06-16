@@ -17,7 +17,6 @@ import { promptLanguageForLocale } from "../build/utils/localePresets.js";
 import {
   generatePageContentCore,
   generateCustomPageContentCore,
-  generateFaqContentCore,
 } from "../text-generation/generateCore.js";
 import {
   generatePageImagesCore,
@@ -56,10 +55,14 @@ import {
 } from "./cost.js";
 import { autoGenLog, logAutoGenCost } from "./logger.js";
 import {
+  runWithConcurrency,
+  getGenerationConcurrency,
+  getImageConcurrency,
+} from "./concurrency.js";
+import {
   shouldSkipPageText,
   shouldSkipPageImages,
   shouldSkipFavicon,
-  shouldSkipFaq,
   getPageInfo,
 } from "./reuse.js";
 import type {
@@ -176,7 +179,6 @@ async function stepPages(
     settings.locales?.length > 0
       ? settings.locales
       : [settings.defaultLocale || "en"];
-  const defaultLocale = settings.defaultLocale || locales[0] || "en";
 
   const localizedPages: Record<string, Record<string, unknown>> = {};
   for (const loc of locales) {
@@ -186,13 +188,17 @@ async function stepPages(
   const pagesInfo: Record<string, unknown> = {};
   const blockKeywordsGlobal = globalKeywords?.trim() || "";
 
-  for (const pagePlan of plan.pages) {
-    const keywords = mergeGlobalKeywords(
-      pagePlan.blocks,
-      {},
-      blockKeywordsGlobal
-    );
+  // 1) pagesInfo и метаданные — независимо от GPT-результата.
+  // 2) Собираем список задач (страница × локаль), которые реально надо генерировать.
+  type TextTask = {
+    pagePlan: PagePlan;
+    locale: string;
+    keywords: Record<string, string>;
+  };
+  const tasks: TextTask[] = [];
 
+  for (const pagePlan of plan.pages) {
+    const keywords = mergeGlobalKeywords(pagePlan.blocks, {}, blockKeywordsGlobal);
     const existing = getPageInfo(projectName, pagePlan.pageType);
     let allLocalesSkipped = true;
 
@@ -205,47 +211,7 @@ async function stepPages(
         continue;
       }
       allLocalesSkipped = false;
-      const language = promptLanguageForLocale(locale);
-      try {
-        let data: Record<string, unknown>;
-        if (pagePlan.isCustom && pagePlan.pageName) {
-          const result = await generateCustomPageContentCore({
-            brand: settings.brand,
-            language,
-            country: settings.country,
-            domain: settings.domain,
-            affiliateLink: settings.affiliateLink,
-            pageName: pagePlan.pageName,
-            blocks: pagePlan.blocks,
-            blockTemplates: pagePlan.blockTemplates,
-            blockKeywords: keywords,
-            projectName,
-          });
-          data = result.data;
-          addOpenAiUsageCost(cost, result.usage);
-        } else {
-          const result = await generatePageContentCore({
-            brand: settings.brand,
-            language,
-            country: settings.country,
-            domain: settings.domain,
-            affiliateLink: settings.affiliateLink,
-            pageType: pagePlan.pageType,
-            blocks: pagePlan.blocks,
-            blockTemplates: pagePlan.blockTemplates,
-            blockKeywords: keywords,
-            projectName,
-          });
-          data = result.data;
-          addOpenAiUsageCost(cost, result.usage);
-        }
-        localizedPages[locale][pagePlan.pageType] = data;
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        throw new Error(
-          AUTO_ERRORS.pageTextFailed(pagePlan.pageType, locale, msg)
-        );
-      }
+      tasks.push({ pagePlan, locale, keywords });
     }
 
     if (allLocalesSkipped && existing?.generated) {
@@ -271,32 +237,66 @@ async function stepPages(
     };
   }
 
-  let faqData: Record<string, unknown> | undefined;
-  if (shouldSkipFaq(projectName)) {
-    autoGenLog(projectName, "FAQ — уже есть, пропуск GPT");
-  } else {
-    try {
-      const faqLanguage = promptLanguageForLocale(defaultLocale);
-      const faqResult = await generateFaqContentCore({
-        brand: settings.brand,
-        language: faqLanguage,
-        country: settings.country,
-        count: plan.faqCount,
-        projectName,
-      });
-      faqData = faqResult.data.faq;
-      addOpenAiUsageCost(cost, faqResult.usage);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      throw new Error(`Ошибка генерации FAQ: ${msg}`);
+  const concurrency = getGenerationConcurrency();
+  autoGenLog(
+    projectName,
+    `Тексты: ${tasks.length} задач (страница×локаль), параллельно по ${concurrency}`
+  );
+
+  // Глобальный faq.json больше не генерируется: у каждой страницы есть свой
+  // FAQ-блок (минимум 5 вопросов) — это экономит отдельный GPT-запрос.
+
+  // Параллельная генерация всех страниц/локалей с ограничением одновременных запросов.
+  const pagesPromise = runWithConcurrency(
+    tasks,
+    concurrency,
+    async (task) => {
+      const { pagePlan, locale, keywords } = task;
+      const language = promptLanguageForLocale(locale);
+      try {
+        const result =
+          pagePlan.isCustom && pagePlan.pageName
+            ? await generateCustomPageContentCore({
+                brand: settings.brand,
+                language,
+                country: settings.country,
+                domain: settings.domain,
+                affiliateLink: settings.affiliateLink,
+                pageName: pagePlan.pageName,
+                blocks: pagePlan.blocks,
+                blockTemplates: pagePlan.blockTemplates,
+                blockKeywords: keywords,
+                projectName,
+              })
+            : await generatePageContentCore({
+                brand: settings.brand,
+                language,
+                country: settings.country,
+                domain: settings.domain,
+                affiliateLink: settings.affiliateLink,
+                pageType: pagePlan.pageType,
+                blocks: pagePlan.blocks,
+                blockTemplates: pagePlan.blockTemplates,
+                blockKeywords: keywords,
+                projectName,
+              });
+        addOpenAiUsageCost(cost, result.usage);
+        localizedPages[locale][pagePlan.pageType] = result.data;
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(
+          AUTO_ERRORS.pageTextFailed(pagePlan.pageType, locale, msg)
+        );
+      }
     }
-  }
+  );
+
+  await pagesPromise;
 
   persistGeneratedPages({
     projectName,
     localizedPages,
     pagesInfo,
-    faq: faqData,
   });
 
   persistCostSnapshot(projectName, cost, "После текстов");
@@ -316,15 +316,25 @@ async function stepImages(
     ensureRunwareInitialized();
   }
 
-  for (const pagePlan of pages) {
+  const imageTasks = pages.filter((pagePlan) => {
     if (shouldSkipPageImages(projectName, pagePlan.pageType, pagePlan.imageCount)) {
       autoGenLog(
         projectName,
         `Изображения: «${pagePlan.pageType}» — уже есть (${pagePlan.imageCount}+), пропуск`
       );
-      continue;
+      return false;
     }
+    return true;
+  });
 
+  const imageConcurrency = getImageConcurrency();
+  autoGenLog(
+    projectName,
+    `Изображения: ${imageTasks.length} страниц, параллельно по ${imageConcurrency}`
+  );
+
+  // Разные страницы пишут файлы с уникальными именами, persist под локом — параллелим безопасно.
+  await runWithConcurrency(imageTasks, imageConcurrency, async (pagePlan) => {
     autoGenLog(
       projectName,
       `Изображения: страница «${pagePlan.pageType}» (${pagePlan.imageCount} шт.)…`
@@ -356,7 +366,7 @@ async function stepImages(
     if (runwareOn) {
       addImageCost(cost, images.filter((i) => !i.placeholder).length);
     }
-  }
+  });
 
   persistCostSnapshot(projectName, cost, "После изображений");
 }
@@ -413,8 +423,11 @@ async function stepBuildArchiveUpload(
 
   const distPath = path.join(projectPath, "dist");
   const server = options.server;
+  const settingsForUpload = getProjectSettings(projectName);
+  const domainForUpload = settingsForUpload?.domain;
+  let uploadedRemotePath = server.remotePath?.trim() || "/";
   try {
-    await uploadDirectoryToServer(
+    const uploadResult = await uploadDirectoryToServer(
       {
         host: server.host.trim(),
         port: server.port,
@@ -422,7 +435,13 @@ async function stepBuildArchiveUpload(
         password: server.password,
         remotePath: server.remotePath?.trim() || "/",
       },
-      distPath
+      distPath,
+      { domain: domainForUpload }
+    );
+    uploadedRemotePath = uploadResult.remotePath;
+    autoGenLog(
+      projectName,
+      `Загрузка завершена: ${uploadResult.filesUploaded} файлов по ${uploadResult.protocol} → ${uploadResult.remotePath}`
     );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -437,7 +456,7 @@ async function stepBuildArchiveUpload(
         host: server.host.trim(),
         port: server.port,
         username: server.username.trim(),
-        remotePath: server.remotePath?.trim() || "/",
+        remotePath: uploadedRemotePath,
       },
     });
   }
@@ -518,8 +537,10 @@ export async function runAutoGeneration(
 
       const finalCost = roundCost(cost);
       setAutoCost(projectName, finalCost);
+      // finishAutoRun помечает все шаги (включая "done") и ставит status="done".
+      // Отдельный markStepDone(..., "done") здесь НЕ вызываем: setAutoStep вернул бы
+      // status обратно в "running" и оверлей не закрылся бы.
       finishAutoRun(projectName, finalCost);
-      markStepDone(projectName, "done");
       logAutoGenCost(projectName, finalCost, "Итог автогенерации");
       autoGenLog(projectName, `Готово. Стоимость ≈ $${finalCost.total.toFixed(4)}`);
     });

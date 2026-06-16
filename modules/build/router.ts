@@ -39,6 +39,7 @@ import {
 import { getThemesCatalog } from "./utils/themeCatalog.js";
 import { generatePagesData } from "./utils/pagesDataGenerator.js";
 import { syncIndexHtmlHead } from "./utils/indexHtmlSync.js";
+import { buildSeoEntityConfig } from "./utils/seoEntity.js";
 import {
   createProjectArchive,
   buildAndArchiveProject,
@@ -338,6 +339,21 @@ router.post("/create-project", appUpload.single("apk"), async (req, res) => {
       };
     }
 
+    const seoEntity = buildSeoEntityConfig({
+      brand: metadata.brand,
+      domain: metadata.domain,
+      geoLabel,
+      country,
+      countryCode: geoCode || undefined,
+      locales,
+      htmlLang: defaultLocale,
+      projectPath,
+      overrides:
+        m.seoEntity && typeof m.seoEntity === "object"
+          ? (m.seoEntity as Record<string, unknown>)
+          : undefined,
+    });
+
     saveProjectSettings(projectPath, {
       brand: metadata.brand,
       language: primaryLanguage,
@@ -365,6 +381,7 @@ router.post("/create-project", appUpload.single("apk"), async (req, res) => {
       askBeforeBuild: m.askBeforeBuild !== false,
       autoGeneration,
       customPages: normalizeAutoCustomPages(m.customPages),
+      seoEntity,
       app: {
         hasApp: appFileName !== "/go",
         fileName: appFileName !== "/go" ? appFileName : null,
@@ -1466,8 +1483,16 @@ router.post("/save-image-presets", async (req, res) => {
 router.put("/project/:projectName", async (req, res) => {
   try {
     const { projectName } = req.params;
-    const { brand, language, country, domain, affiliateLink, geoCode, geoLabel } =
-      req.body;
+    const {
+      brand,
+      language,
+      country,
+      domain,
+      affiliateLink,
+      geoCode,
+      geoLabel,
+      seoEntity: seoEntityBody,
+    } = req.body;
 
     if (!projectExists(projectName)) {
       return res.status(404).json({
@@ -1488,6 +1513,38 @@ router.put("/project/:projectName", async (req, res) => {
       });
     }
 
+    const cur = getProjectSettings(projectName);
+    const projectPathForSeo = getProjectPath(projectName);
+
+    let seoEntityPatch: ReturnType<typeof buildSeoEntityConfig> | undefined;
+    if (seoEntityBody && typeof seoEntityBody === "object") {
+      seoEntityPatch = buildSeoEntityConfig({
+        brand: brand ?? cur?.brand ?? "Site",
+        domain: domain ?? cur?.domain,
+        geoLabel: geoLabel ?? cur?.geoLabel ?? cur?.country,
+        country: country ?? cur?.country,
+        countryCode: geoCode ?? cur?.geoCode ?? undefined,
+        locales: cur?.locales,
+        htmlLang: cur?.htmlLang,
+        projectPath: projectPathForSeo,
+        overrides: seoEntityBody as Record<string, unknown>,
+      });
+    } else if (cur && (brand || domain || geoLabel || country)) {
+      seoEntityPatch = buildSeoEntityConfig({
+        brand: brand ?? cur.brand,
+        domain: domain ?? cur.domain,
+        geoLabel: geoLabel ?? cur.geoLabel ?? cur.country,
+        country: country ?? cur.country,
+        countryCode: geoCode ?? cur.geoCode ?? undefined,
+        locales: cur.locales,
+        htmlLang: cur.htmlLang,
+        projectPath: projectPathForSeo,
+        overrides: (cur as Record<string, unknown>).seoEntity as
+          | Record<string, unknown>
+          | undefined,
+      });
+    }
+
     updateProjectSettings(projectName, {
       brand,
       language,
@@ -1496,9 +1553,9 @@ router.put("/project/:projectName", async (req, res) => {
       affiliateLink,
       ...(geoCode !== undefined ? { geoCode: geoCode || null } : {}),
       ...(geoLabel !== undefined ? { geoLabel } : {}),
+      ...(seoEntityPatch ? { seoEntity: seoEntityPatch } : {}),
     });
 
-    // Получаем обновленные настройки
     const updatedSettings = getProjectSettings(projectName);
 
     // Обновляем .env файл
@@ -2213,16 +2270,23 @@ router.post("/project/:projectName/upload-to-server", async (req, res) => {
         ? remotePath.trim()
         : "/";
 
-    const { filesUploaded, protocol } = await uploadDirectoryToServer(
-      {
-        host: hostTrim,
-        port: resolvedPort,
-        username: userTrim,
-        password: pass,
-        remotePath: effectiveRemotePath,
-      },
-      distPath
-    );
+    const { filesUploaded, protocol, remotePath: resolvedRemotePath } =
+      await uploadDirectoryToServer(
+        {
+          host: hostTrim,
+          port: resolvedPort,
+          username: userTrim,
+          password: pass,
+          remotePath: effectiveRemotePath,
+        },
+        distPath,
+        { domain: currentSettings.domain }
+      );
+
+    const autoDetected =
+      (!remotePath || effectiveRemotePath === "/") &&
+      resolvedRemotePath !== "/" &&
+      resolvedRemotePath !== effectiveRemotePath;
 
     saveProjectSettings(projectPath, {
       ...currentSettings,
@@ -2230,20 +2294,23 @@ router.post("/project/:projectName/upload-to-server", async (req, res) => {
         host: hostTrim,
         port: resolvedPort,
         username: userTrim,
-        remotePath: effectiveRemotePath,
+        remotePath: resolvedRemotePath,
       },
     });
 
     res.json({
       success: true,
       message:
-        `Загружено файлов: ${filesUploaded} (${protocol.toUpperCase()}) → ${effectiveRemotePath}. ` +
+        `Загружено файлов: ${filesUploaded} (${protocol.toUpperCase()}) → ${resolvedRemotePath}. ` +
+        (autoDetected
+          ? `Путь определён автоматически (корень сайта домена). `
+          : "") +
         `Откройте на сервере этот каталог и убедитесь, что он совпадает с тем, что отдаёт веб‑сервер по IP или домену (document root nginx/apache, public_html у хостинг‑панели). ` +
         `Если совпадает, а вы всё равно видите старый сайт — сбросьте кеш браузера (Ctrl+F5) или CDN. ` +
         `Перезагрузка веб‑сервера не выполняется — это нужно делать только если ваш хостинг так требует.`,
       filesUploaded,
       protocol,
-      remotePath: effectiveRemotePath,
+      remotePath: resolvedRemotePath,
     });
   } catch (error: any) {
     console.error("[build] Ошибка загрузки на сервер:", error);

@@ -180,6 +180,32 @@ function renderElement(el: Record<string, unknown>, idx: number): ReactNode {
         </ul>
       );
     }
+    case "faq": {
+      const raw = el.items;
+      if (!Array.isArray(raw) || raw.length === 0) return null;
+      const items = raw.filter(
+        (it): it is { title?: string; description?: string } =>
+          !!it && typeof it === "object"
+      );
+      if (items.length === 0) return null;
+      return (
+        <div key={idx} className="sb-faq">
+          {items.map((it, j) => {
+            if (!it.title) return null;
+            return (
+              <details
+                key={j}
+                className="sb-faq-item sb-reveal"
+                style={{ "--sb-reveal-delay": `${j * 50}ms` } as CSSProperties}
+              >
+                <summary className="sb-faq-q">{it.title}</summary>
+                {it.description && <p className="sb-faq-a">{it.description}</p>}
+              </details>
+            );
+          })}
+        </div>
+      );
+    }
     case "image": {
       const ref = typeof el.src === "string" ? el.src : "";
       if (!ref) return null;

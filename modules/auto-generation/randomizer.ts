@@ -99,8 +99,56 @@ const DEFAULT_BLOCK_TEMPLATES: Record<string, string> = {
   forgot: "h2_2p",
   tips: "h2_3p",
   powered: "h2_2p",
-  faq: "h2_p_list",
+  faq: "faq_block",
+  // Дополнительные текстовые (прозовые) блоки — больше контента, без перечислений.
+  about: "h2_4p",
+  why_us: "h2_3p",
+  payments: "h2_3p",
+  support: "h2_2p",
+  promotions: "h2_3p",
+  getting_started: "h2_4p",
+  responsible_gaming: "h2_2p",
+  experience: "h2_3p",
+  overview: "h2_4p",
 };
+
+/** Структуры, которые рендерятся как перечисления (списки). */
+const LIST_TEMPLATE_IDS = new Set([
+  "h2_list",
+  "h2_list-large",
+  "h2_p_list",
+  "h2_p_glossary",
+]);
+
+/** Общие прозовые блоки, которые подходят почти любой странице казино. */
+const EXTRA_PROSE_BLOCKS = [
+  "about",
+  "why_us",
+  "payments",
+  "support",
+  "promotions",
+  "getting_started",
+  "experience",
+  "overview",
+  "responsible_gaming",
+];
+
+/** Блок-перечисление? (faq не считается — это отдельный аккордеон). */
+function isListBlock(block: string): boolean {
+  if (block === "faq") return false;
+  const tpl = DEFAULT_BLOCK_TEMPLATES[block] || "h2_2p";
+  return LIST_TEMPLATE_IDS.has(tpl);
+}
+
+function uniqueBlocks(blocks: string[]): string[] {
+  return Array.from(new Set(blocks));
+}
+
+/** Гарантирует наличие блока FAQ в конце страницы (для автогенерации FAQ ≥5 вопросов). */
+function ensureFaqLast(blocks: string[]): string[] {
+  const withoutFaq = blocks.filter((b) => b !== "faq");
+  return [...withoutFaq, "faq"];
+}
 
 const CUSTOM_BLOCK_POOL = [
   "welcome",
@@ -163,15 +211,29 @@ function imageCountForPage(pageType: string, isCustom: boolean): number {
   return 2;
 }
 
+/**
+ * Подбирает блоки страницы:
+ *  - больше текстовых (прозовых) блоков (4–6);
+ *  - максимум один блок-перечисление (список) и не на каждой странице (~50%);
+ *  - вступительные блоки идут первыми.
+ */
 function pickBlocksForPage(
   rng: () => number,
   pool: string[],
-  minCount = 3
+  _minCount = 3
 ): string[] {
-  const maxCount = Math.min(pool.length, minCount + randInt(rng, 0, 2));
-  const count = Math.max(minCount, maxCount);
-  const picked = pickManyUnique(rng, pool, count);
-  return orderBlocksIntroFirst(picked);
+  const listPool = pool.filter(isListBlock);
+  const prosePoolBase = pool.filter((b) => !isListBlock(b) && b !== "faq");
+  const prosePool = uniqueBlocks([...prosePoolBase, ...EXTRA_PROSE_BLOCKS]);
+
+  const proseCount = Math.min(prosePool.length, randInt(rng, 4, 6));
+  const proseBlocks = pickManyUnique(rng, prosePool, proseCount);
+
+  // ~50% страниц получают ровно один блок-перечисление.
+  const includeList = listPool.length > 0 && rng() < 0.5;
+  const listBlocks = includeList ? [pickOne(rng, listPool)] : [];
+
+  return orderBlocksIntroFirst([...proseBlocks, ...listBlocks]);
 }
 
 function templatesForBlocks(blocks: string[]): Record<string, string> {
@@ -200,7 +262,7 @@ export function buildAutoRandomPlan(input: {
 
   for (const pageType of REQUIRED_PAGE_TYPES) {
     const pool = PAGE_POOLS[pageType];
-    const blocks = pickBlocksForPage(rng, pool, 3);
+    const blocks = ensureFaqLast(pickBlocksForPage(rng, pool, 3));
     pages.push({
       pageType,
       blocks,
@@ -218,6 +280,7 @@ export function buildAutoRandomPlan(input: {
     if (blocks.length < 3) {
       blocks = pickBlocksForPage(rng, CUSTOM_BLOCK_POOL, 3);
     }
+    blocks = ensureFaqLast(blocks);
     pages.push({
       pageType: slug,
       pageName: cp.name.trim(),

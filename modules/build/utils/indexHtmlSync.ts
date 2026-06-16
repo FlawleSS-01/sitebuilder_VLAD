@@ -5,7 +5,9 @@ import {
   normalizeSiteOrigin,
   summaryFromPageJson,
   type PageSeoSummary,
+  type FaqItem,
 } from "./jsonLdBuilder.js";
+import { parseSeoEntityFromSettings } from "./seoEntity.js";
 import { writeSeoArtifacts } from "./seoArtifacts.js";
 import { titleWithBrandLeading } from "../../source/page-title-brand-first.js";
 
@@ -101,6 +103,63 @@ function readJsonSafe(filePath: string): unknown | null {
 /**
  * Собирает SEO-сводку по маршрутам из project-settings и файлов страниц.
  */
+function readFaqItems(projectPath: string): FaqItem[] {
+  const faqPath = path.join(projectPath, "src", "pages", "faq.json");
+  if (!fs.existsSync(faqPath)) return [];
+  const data = readJsonSafe(faqPath) as
+    | { faq?: { items?: unknown[] }; items?: unknown[] }
+    | null;
+  const rawItems = data?.faq?.items ?? data?.items;
+  if (!Array.isArray(rawItems)) return [];
+  const out: FaqItem[] = [];
+  for (const it of rawItems) {
+    if (!it || typeof it !== "object") continue;
+    const o = it as Record<string, unknown>;
+    const question = typeof o.question === "string" ? o.question.trim() : "";
+    const answer = typeof o.answer === "string" ? o.answer.trim() : "";
+    if (question && answer) out.push({ question, answer });
+  }
+  return out;
+}
+
+function pageHasFaqBlock(pageInfo: Record<string, unknown>): boolean {
+  const blocks = pageInfo.blocks;
+  if (!Array.isArray(blocks)) return false;
+  return blocks.some((b) => String(b).toLowerCase().includes("faq"));
+}
+
+/**
+ * Извлекает реальные вопросы/ответы из FAQ-блока самой страницы (page JSON),
+ * чтобы JSON-LD FAQPage совпадал с видимым на странице FAQ.
+ */
+function extractFaqFromPageJson(data: unknown): FaqItem[] {
+  if (!data || typeof data !== "object") return [];
+  const blocks = (data as { blocks?: unknown }).blocks;
+  if (!Array.isArray(blocks)) return [];
+  const out: FaqItem[] = [];
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    const elements = (block as { elements?: unknown }).elements;
+    if (!Array.isArray(elements)) continue;
+    for (const el of elements) {
+      if (!el || typeof el !== "object") continue;
+      if (String((el as { type?: unknown }).type).toLowerCase() !== "faq")
+        continue;
+      const items = (el as { items?: unknown }).items;
+      if (!Array.isArray(items)) continue;
+      for (const it of items) {
+        if (!it || typeof it !== "object") continue;
+        const o = it as Record<string, unknown>;
+        const question = typeof o.title === "string" ? o.title.trim() : "";
+        const answer =
+          typeof o.description === "string" ? o.description.trim() : "";
+        if (question && answer) out.push({ question, answer });
+      }
+    }
+  }
+  return out;
+}
+
 export function collectPageSeoSummaries(
   projectPath: string,
   settings: Record<string, unknown>
@@ -117,17 +176,20 @@ export function collectPageSeoSummaries(
     ? (settings.locales as string[])
     : [defaultLocale];
 
+  const faqItems = readFaqItems(projectPath);
   const summaries: PageSeoSummary[] = [];
 
   for (const [pageType, pageInfo] of Object.entries(pages)) {
     if (!pageInfo?.generated) continue;
 
+    const isCustom = !!pageInfo.isCustom;
     const key = getPageDataKey(
       pageType,
       pageInfo.pageName as string | undefined,
-      !!pageInfo.isCustom
+      isCustom
     );
     const pathRoute = routePathForKey(key);
+    const isHome = pathRoute === "/";
 
     const jsonPath = resolvePageJsonPath(
       projectPath,
@@ -138,18 +200,41 @@ export function collectPageSeoSummaries(
     );
     let name = (pageInfo.displayName as string) || "";
     let description = "";
+    let pageFaqItems: FaqItem[] = [];
 
     if (jsonPath) {
       const data = readJsonSafe(jsonPath);
       const s = summaryFromPageJson(data);
       if (!name) name = s.name;
       description = s.description;
+      pageFaqItems = extractFaqFromPageJson(data);
     }
     if (!name) {
-      name = pathRoute === "/" ? "Home" : pathRoute.replace(/^\//, "");
+      name = isHome ? "Home" : pathRoute.replace(/^\//, "");
     }
 
-    summaries.push({ path: pathRoute, name, description });
+    // Приоритет: FAQ из самого page JSON (совпадает с видимым контентом),
+    // иначе — глобальный faq.json (главная страница / старые проекты).
+    const resolvedFaqItems =
+      pageFaqItems.length > 0
+        ? pageFaqItems
+        : pageHasFaqBlock(pageInfo) || isHome
+          ? faqItems
+          : [];
+
+    // FAQPage только если на странице реально есть вопросы/ответы.
+    const hasFaq = resolvedFaqItems.length > 0;
+
+    summaries.push({
+      path: pathRoute,
+      name,
+      description,
+      pageKey: key,
+      pageType: isCustom ? "custom" : pageType,
+      isCustom,
+      hasFaq,
+      faqItems: hasFaq ? resolvedFaqItems : undefined,
+    });
   }
 
   if (!summaries.some((s) => s.path === "/")) {
@@ -157,6 +242,9 @@ export function collectPageSeoSummaries(
       path: "/",
       name: (settings.brand as string) || "Home",
       description: "",
+      pageKey: "main",
+      pageType: "homepage",
+      hasFaq: false,
     });
   }
 
@@ -207,14 +295,21 @@ export function syncIndexHtmlHead(projectPath: string): void {
   const homeDisplayName = home?.name || brand;
   const homeTitleForMeta = titleWithBrandLeading(brand, homeDisplayName);
 
+  const seoEntity = parseSeoEntityFromSettings(
+    settings,
+    projectPath,
+    home?.description || metaDescription
+  );
+
   const graph = buildJsonLdGraph({
     origin,
     inLanguage,
     brand,
+    entity: seoEntity,
     pages:
       pageSummaries.length > 0
         ? pageSummaries
-        : [{ path: "/", name: brand, description: metaDescription }],
+        : [{ path: "/", name: brand, description: metaDescription, pageKey: "main" }],
   });
 
   const jsonStr = JSON.stringify(graph).replace(/</g, "\\u003c");
@@ -244,7 +339,7 @@ export function syncIndexHtmlHead(projectPath: string): void {
   // and Twitter/X cards. Image is the favicon-style logo if present;
   // we don't reference a generated AI image because those filenames are
   // unstable across regenerations.
-  const ogImage = `${origin}/images/logo.webp`;
+  const ogImage = seoEntity.logoAbsoluteUrl || `${origin}/images/logo.webp`;
   const ogTags = [
     `<meta property="og:type" content="website" />`,
     `<meta property="og:site_name" content="${escapeAttr(brand)}" />`,

@@ -1,0 +1,44 @@
+1. "Авторитетное казино" (Graph Hack) Заставляет Google поверить, 
+что ваш новый домен является старым авторитетным брендом со связями.
+Местоположение: Домашняя страница.
+
+<script type="application/ld+json">
+{
+"@context": "https://schema.org",
+"@type": "Organization",
+"@id": "https://your-domain.com/#organization",
+"name": "Royal Spin Global",
+"url": "https://your-domain.com",
+"logo": {
+"@type": "ImageObject",
+"url": "https://your-domain.com/assets/logo-verified.png",
+"width": 600,
+"height": 60
+},
+"foundingDate": "2015-04-12", /* ПОДДЕЛКА: дата из Wayback
+"description": "Leader in safe gambling and crypto-betting. Licensed by Curacao eGaming.",
+
+/* HACK 1: то же самое, что и инъекция - привязка к доверию. */
+"sameAs": [
+"https://twitter.com/royalspin_official", /* Your twitter (even if empty) */
+"https://www.crunchbase.com/organization/royal-spin-fake", /* Crunchbase profile */
+"https://web.archive.org/web/20160101/http://old-trust-domain.com" /* Link to archive of old drop */
+],
+
+/* HACK 2: семантическое обоснование - объяснение ниши в Википедии */
+"knowsAbout": [
+{ "@type": "Thing", "name": "Online Casino", "sameAs": "https://en.wikipedia.org/wiki/Online_casino" },
+{ "@type": "Thing", "name": "Cryptocurrency", "sameAs": "https://en.wikipedia.org/wiki/Cryptocurrency" },
+{ "@type": "Thing", "name": "RTP", "sameAs": "https://en.wikipedia.org/wiki/Return_to_Player" }
+],
+
+/* HACK 3: поддельные контакты - для E-E-A-T (адрес не должен быть запрещен в GMB) */
+"contactPoint": {
+"@type": "ContactPoint",
+"telephone": "+44-20-7946-0123",
+"contactType": "customer support",
+"areaServed": ["GB", "DE", "CA"],
+"availableLanguage": ["English", "German"]
+}
+}
+</script>

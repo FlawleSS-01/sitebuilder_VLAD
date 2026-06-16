@@ -911,6 +911,51 @@ a {
   margin-top: 0.2rem;
 }
 
+/* FAQ (автогенерация, минимум 5 вопросов) */
+.sb-faq {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.sb-faq-item {
+  border: 1px solid var(--sb-card-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--sb-radius-md, 12px);
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+.sb-faq-q {
+  cursor: pointer;
+  list-style: none;
+  padding: 1rem 2.75rem 1rem 1.25rem;
+  position: relative;
+  font-family: var(--sb-font-heading, inherit);
+  font-weight: 600;
+  color: var(--sb-fg, #fff);
+}
+.sb-faq-q::-webkit-details-marker {
+  display: none;
+}
+.sb-faq-q::after {
+  content: "+";
+  position: absolute;
+  right: 1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--sb-accent, #daa112);
+}
+.sb-faq-item[open] .sb-faq-q::after {
+  content: "\2212";
+}
+.sb-faq-a {
+  margin: 0;
+  padding: 0 1.25rem 1.1rem;
+  color: var(--sb-fg-soft, rgba(255, 255, 255, 0.75));
+  line-height: 1.6;
+}
+
 /* Plain (string-only) list ------------------------------------------------- */
 .sb-plain-list {
   list-style: none;

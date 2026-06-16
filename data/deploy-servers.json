@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "id": "srv-mqgsfdzm-ogovnu",
+    "label": "MAIN",
+    "host": "91.199.133.218",
+    "port": 21,
+    "username": "spell77",
+    "remotePath": "/",
+    "createdAt": "2026-06-16T15:19:16.882Z"
+  },
+  {
+    "id": "srv-mqgsxgok-2grf5z",
+    "label": "MAIN",
+    "host": "91.199.133.218",
+    "port": 21,
+    "username": "spell77",
+    "remotePath": "/",
+    "createdAt": "2026-06-16T15:33:20.180Z"
+  }
+]

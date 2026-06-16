@@ -11,10 +11,76 @@ export interface ServerUploadCredentials {
   remotePath: string;
 }
 
+export interface ServerUploadOptions {
+  /** Домен проекта — для автоопределения корня сайта, если remotePath не задан. */
+  domain?: string;
+}
+
 function normalizeRemotePath(p: string): string {
   const s = (p || "/").replace(/\\/g, "/").trim();
   if (!s || s === ".") return "/";
   return s.startsWith("/") ? s.replace(/\/+$/, "") || "/" : `/${s.replace(/\/+$/, "")}`;
+}
+
+/** remotePath считается "не задан" (корень/домашняя папка), когда пуст или "/". */
+function isRootPath(p?: string): boolean {
+  const s = (p || "").replace(/\\/g, "/").trim();
+  return !s || s === "/" || s === "." || s === "./";
+}
+
+function cleanDomain(domain?: string): string {
+  return (domain || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/^www\./, "");
+}
+
+/**
+ * Кандидаты на корень документов домена относительно домашней папки логина.
+ * Порядок важен: сначала специфичные для домена, потом общие.
+ */
+function webRootCandidates(domain?: string): string[] {
+  const d = cleanDomain(domain);
+  const list: string[] = [];
+  if (d) {
+    list.push(
+      `www/${d}`,
+      `domains/${d}/public_html`,
+      `domains/${d}`,
+      `${d}/public_html`,
+      d
+    );
+  }
+  list.push("public_html", "www", "htdocs", "httpdocs", "wwwroot", "web");
+  return list;
+}
+
+async function resolveFtpWebRoot(
+  client: FtpClient,
+  domain?: string
+): Promise<string | null> {
+  let home = "/";
+  try {
+    home = await client.pwd();
+  } catch {
+    /* ignore */
+  }
+  for (const cand of webRootCandidates(domain)) {
+    try {
+      await client.cd(home);
+      await client.cd(cand);
+      const resolved = await client.pwd();
+      // вернёмся в home, реальную загрузку сделаем по абсолютному пути
+      await client.cd(home).catch(() => {});
+      return resolved;
+    } catch {
+      /* каталога нет — пробуем следующий */
+    }
+  }
+  await client.cd(home).catch(() => {});
+  return null;
 }
 
 async function uploadDirSftp(
@@ -40,12 +106,35 @@ async function uploadDirSftp(
   return count;
 }
 
+async function resolveSftpWebRoot(
+  sftp: SftpClient,
+  domain?: string
+): Promise<string | null> {
+  let home = "/";
+  try {
+    home = await sftp.realPath(".");
+  } catch {
+    /* ignore */
+  }
+  const base = home.replace(/\/+$/, "") || "";
+  for (const cand of webRootCandidates(domain)) {
+    const full = cand.startsWith("/") ? cand : `${base}/${cand}`;
+    try {
+      const ex = await sftp.exists(full);
+      if (ex === "d") return full;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
 async function uploadViaSftp(
   creds: ServerUploadCredentials,
-  localDir: string
-): Promise<number> {
+  localDir: string,
+  options?: ServerUploadOptions
+): Promise<{ count: number; target: string }> {
   const sftp = new SftpClient();
-  const remoteBase = normalizeRemotePath(creds.remotePath);
 
   try {
     await sftp.connect({
@@ -55,7 +144,26 @@ async function uploadViaSftp(
       password: creds.password,
       readyTimeout: 60_000,
     });
-    return await uploadDirSftp(sftp, localDir, remoteBase);
+
+    let remoteBase: string;
+    if (isRootPath(creds.remotePath)) {
+      const detected = await resolveSftpWebRoot(sftp, options?.domain);
+      if (detected) {
+        remoteBase = detected;
+        console.log(`[upload] SFTP: автоопределён корень сайта → ${detected}`);
+      } else {
+        remoteBase = normalizeRemotePath(creds.remotePath);
+        console.warn(
+          `[upload] SFTP: не удалось определить корень сайта, гружу в ${remoteBase}. ` +
+            `Если сайт не открывается — задайте remotePath вручную (например /var/www/${cleanDomain(options?.domain) || "site"}).`
+        );
+      }
+    } else {
+      remoteBase = normalizeRemotePath(creds.remotePath);
+    }
+
+    const count = await uploadDirSftp(sftp, localDir, remoteBase);
+    return { count, target: remoteBase };
   } finally {
     await sftp.end().catch(() => {});
   }
@@ -63,8 +171,9 @@ async function uploadViaSftp(
 
 async function uploadViaFtp(
   creds: ServerUploadCredentials,
-  localDir: string
-): Promise<number> {
+  localDir: string,
+  options?: ServerUploadOptions
+): Promise<{ count: number; target: string }> {
   const client = new FtpClient(60_000);
   client.ftp.verbose = false;
 
@@ -76,11 +185,27 @@ async function uploadViaFtp(
       password: creds.password,
       secure: false,
     });
-    const remoteBase = normalizeRemotePath(creds.remotePath);
-    await client.ensureDir(remoteBase);
-    await client.cd(remoteBase);
-    await client.uploadFromDir(localDir);
-    return countFilesRecursive(localDir);
+
+    let target: string;
+    if (isRootPath(creds.remotePath)) {
+      const detected = await resolveFtpWebRoot(client, options?.domain);
+      if (detected) {
+        target = detected;
+        console.log(`[upload] FTP: автоопределён корень сайта → ${detected}`);
+      } else {
+        target = normalizeRemotePath(creds.remotePath);
+        console.warn(
+          `[upload] FTP: не удалось определить корень сайта, гружу в ${target} (домашняя папка). ` +
+            `Если сайт не открывается — задайте remotePath вручную (например public_html или www/${cleanDomain(options?.domain) || "домен"}).`
+        );
+      }
+    } else {
+      target = normalizeRemotePath(creds.remotePath);
+    }
+
+    await client.ensureDir(target);
+    await client.uploadFromDir(localDir, target);
+    return { count: countFilesRecursive(localDir), target };
   } finally {
     client.close();
   }
@@ -99,16 +224,25 @@ function countFilesRecursive(dir: string): number {
 /** Загружает содержимое локальной папки (dist) на сервер по SFTP или FTP. */
 export async function uploadDirectoryToServer(
   creds: ServerUploadCredentials,
-  localDir: string
-): Promise<{ filesUploaded: number; protocol: "sftp" | "ftp" }> {
+  localDir: string,
+  options?: ServerUploadOptions
+): Promise<{
+  filesUploaded: number;
+  protocol: "sftp" | "ftp";
+  remotePath: string;
+}> {
   if (!fs.existsSync(localDir)) {
     throw new Error(`Локальная папка не найдена: ${localDir}`);
   }
 
   const useFtp = creds.port === 21;
-  const filesUploaded = useFtp
-    ? await uploadViaFtp(creds, localDir)
-    : await uploadViaSftp(creds, localDir);
+  const result = useFtp
+    ? await uploadViaFtp(creds, localDir, options)
+    : await uploadViaSftp(creds, localDir, options);
 
-  return { filesUploaded, protocol: useFtp ? "ftp" : "sftp" };
+  return {
+    filesUploaded: result.count,
+    protocol: useFtp ? "ftp" : "sftp",
+    remotePath: result.target,
+  };
 }

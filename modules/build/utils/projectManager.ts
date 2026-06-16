@@ -383,6 +383,7 @@ export const saveProjectSettings = (
       slug?: string;
       blocks?: string[];
     }>;
+    seoEntity?: import("./seoEntity.js").SeoEntityConfig;
   }
 ): void => {
   const settingsPath = path.join(projectPath, "project-settings.json");
@@ -670,6 +671,7 @@ export const updateProjectSettings = (
     geoLabel?: string | null;
     languageCount?: number;
     languagePresetSource?: string;
+    seoEntity?: import("./seoEntity.js").SeoEntityConfig;
   }
 ): void => {
   const projectPath = getProjectPath(projectName);
@@ -684,7 +686,6 @@ export const updateProjectSettings = (
   }
 
   try {
-    // Читаем текущие настройки
     const currentSettings = getProjectSettings(projectName);
     if (!currentSettings) {
       throw new Error(`Failed to read current settings for ${projectName}`);
