@@ -19,6 +19,11 @@ import {
   generateCustomPageContentCore,
 } from "../text-generation/generateCore.js";
 import {
+  pickReferenceFiles,
+  getReferenceCount,
+  isReferenceLayerEnabled,
+} from "../text-generation/referenceTexts.js";
+import {
   generatePageImagesCore,
   persistPageImagesInProjectSettings,
 } from "../image-generation/controller.js";
@@ -243,6 +248,26 @@ async function stepPages(
     `Тексты: ${tasks.length} задач (страница×локаль), параллельно по ${concurrency}`
   );
 
+  // Референсы: на весь проект выбираем N случайных реальных текстов из
+  // docs/text-reference. Для каждой страницы берётся соответствующий лист —
+  // модель пишет свой оригинальный контент в их стиле/структуре.
+  const referenceFiles = isReferenceLayerEnabled()
+    ? pickReferenceFiles(getReferenceCount())
+    : [];
+  if (referenceFiles.length > 0) {
+    autoGenLog(
+      projectName,
+      `Референсы (docs/text-reference): ${referenceFiles
+        .map((f) => path.basename(f))
+        .join(", ")}`
+    );
+  } else if (isReferenceLayerEnabled()) {
+    autoGenLog(
+      projectName,
+      "Референсы: файлы в docs/text-reference не найдены — генерация без них"
+    );
+  }
+
   // Глобальный faq.json больше не генерируется: у каждой страницы есть свой
   // FAQ-блок (минимум 5 вопросов) — это экономит отдельный GPT-запрос.
 
@@ -267,6 +292,7 @@ async function stepPages(
                 blockTemplates: pagePlan.blockTemplates,
                 blockKeywords: keywords,
                 projectName,
+                referenceFiles,
               })
             : await generatePageContentCore({
                 brand: settings.brand,
@@ -279,6 +305,7 @@ async function stepPages(
                 blockTemplates: pagePlan.blockTemplates,
                 blockKeywords: keywords,
                 projectName,
+                referenceFiles,
               });
         addOpenAiUsageCost(cost, result.usage);
         localizedPages[locale][pagePlan.pageType] = result.data;

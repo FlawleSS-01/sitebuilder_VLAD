@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="340" height="240" viewBox="0 0 340 240">
-  <rect width="340" height="240" rx="14" fill="#141418"/>
-  <rect x="35" y="30" width="270" height="130" rx="10" fill="#051525"/>
-  <circle cx="170" cy="95" r="35" fill="#0a3050"/>
-  <text x="170" y="108" text-anchor="middle" fill="#22c55e" font-family="Arial" font-size="40">🐟</text>
-  <text x="170" y="195" text-anchor="middle" fill="#f4f4f5" font-family="system-ui" font-size="13" font-weight="700">FISHING</text>
-  <text x="170" y="215" text-anchor="middle" fill="#a1a1aa" font-family="Arial" font-size="9">Mega Fishing • All-Star • Boom Legend</text>
-</svg>

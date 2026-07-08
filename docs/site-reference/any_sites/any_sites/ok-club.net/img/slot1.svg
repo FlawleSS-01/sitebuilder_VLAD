@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
-  <rect width="400" height="300" fill="#171310"/>
-  <circle cx="200" cy="120" r="50" fill="#f97316" opacity="0.15"/>
-  <text x="200" y="140" text-anchor="middle" fill="#f97316" font-family="Arial" font-size="40">🍬</text>
-  <text x="200" y="240" text-anchor="middle" fill="#fafaf9" font-family="system-ui" font-size="18" font-weight="600">Sweet Bonanza</text>
-  <text x="200" y="270" text-anchor="middle" fill="#a8a29e" font-family="Arial" font-size="12">Pragmatic • 96.5% RTP</text>
-</svg>

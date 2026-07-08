@@ -1,20 +1,58 @@
+/* Theme 8 — "Velvet Rose": indigo stage with raspberry glass accents. */
 :root {
   --sb-style-id: "glass";
   --sb-hero-align: center;
   --sb-bg: #1a1a2e;
   --sb-bg-2: #533483;
   --sb-fg: #f5f5f5;
+  --sb-fg-soft: rgba(245, 245, 245, 0.82);
   --sb-accent: #e94560;
   --sb-accent-2: #533483;
   --sb-accent-3: #e94560;
-  --sb-card: rgba(255,255,255,0.06);
-  --sb-card-border: rgba(255,255,255,0.12);
-  --sb-header-bg: rgba(0,0,0,0.75);
+  --sb-card: rgba(255, 255, 255, 0.06);
+  --sb-card-border: rgba(255, 255, 255, 0.12);
+  --sb-header-bg: rgba(0, 0, 0, 0.75);
+  /* Тёмный оверлей поверх hero-картинки — текст не сливается с ярким фоном казино */
+  --sb-hero-overlay: linear-gradient(
+    180deg,
+    rgba(10, 8, 22, 0.96) 0%,
+    rgba(26, 26, 46, 0.93) 40%,
+    rgba(18, 10, 36, 0.91) 70%,
+    rgba(10, 8, 22, 0.95) 100%
+  );
   --main-color: #533483;
   --text-color: #f5f5f5;
+  --hero-color: #f5f5f5;
   --card-background: #e94560;
   --mainBtn-background: #e94560;
   --mainBtn-color: #1a1a2e;
   --faq-color-active: #e94560;
 }
-body { background: var(--sb-bg); color: var(--sb-fg); }
+
+body {
+  background: var(--sb-bg);
+  color: var(--sb-fg);
+}
+
+/* Glass-панель hero: плотнее и темнее, чтобы заголовок читался на любом фото */
+body[data-sb-style="glass"] .sb-hero-inner {
+  background: rgba(18, 14, 32, 0.72);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Меньше «блёсток» поверх hero — они осветляют фон и ухудшают контраст */
+body[data-sb-style="glass"] .sb-hero::after {
+  opacity: 0.28;
+}
+
+body[data-sb-style="glass"] .sb-h1,
+body[data-sb-style="glass"] .sb-hero-stat strong {
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.55));
+}
+
+body[data-sb-style="glass"] .sb-h1-desc {
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}

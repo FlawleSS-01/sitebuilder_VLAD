@@ -168,7 +168,8 @@ export const generateUserPrompt = (
   blocks: string[],
   pageType: string,
   uniquenessHint?: string,
-  blockKeywords?: Record<string, string>
+  blockKeywords?: Record<string, string>,
+  referenceGuidance?: string
 ): string => {
   // The uniqueness hint is appended verbatim to the user prompt so the
   // model can use it as a signal NOT to repeat phrasing. Caller should
@@ -179,6 +180,7 @@ export const generateUserPrompt = (
     : "";
 
   const keywordsBlock = buildBlockKeywordsGuidance(blockKeywords);
+  const referenceBlock = referenceGuidance ? `\n${referenceGuidance}` : "";
 
   return `Generate ${pageType} page JSON for brand ${brand} in ${language} for ${country}.
 Include blocks: ${blocks.join(", ")}.
@@ -192,5 +194,5 @@ Instead, use alternative sentence openings such as:
 - "Users enjoy..."
 
 Never remove or avoid the brand name entirely.
-Follow the structure above exactly.${keywordsBlock}${uniquenessBlock}`;
+Follow the structure above exactly.${keywordsBlock}${uniquenessBlock}${referenceBlock}`;
 };

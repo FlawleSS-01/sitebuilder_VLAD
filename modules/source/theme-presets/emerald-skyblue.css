@@ -17,6 +17,8 @@
     rgba(0, 88, 92, 0.55) 45%,
     rgba(54, 226, 200, 0.22) 100%
   );
+  --sb-hero-panel-content: "Tropical Games · Live Casino · Fast Payouts";
+  --sb-hero-panel-color: rgba(230, 255, 251, 0.95);
   --sb-page-pattern: radial-gradient(
       1200px 600px at 100% -10%,
       rgba(54, 226, 200, 0.28),

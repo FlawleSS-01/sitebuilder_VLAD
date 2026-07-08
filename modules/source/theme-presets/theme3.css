@@ -17,6 +17,8 @@
     rgba(10, 61, 46, 0.55) 45%,
     rgba(46, 229, 157, 0.2) 100%
   );
+  --sb-hero-panel-content: "VIP Lounge · Live Casino · Golden Wins";
+  --sb-hero-panel-color: rgba(230, 255, 245, 0.95);
   --sb-page-pattern: radial-gradient(
       1200px 600px at 110% -10%,
       rgba(255, 209, 102, 0.18),

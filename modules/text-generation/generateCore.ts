@@ -17,6 +17,7 @@ import {
   generateListVariant,
 } from "../text-generation/utils/variantGenerator.js";
 import { modelSupportsCustomTemperature } from "../shared/openaiModel.js";
+import { buildReferenceGuidance } from "./referenceTexts.js";
 import {
   extractChatCompletionText,
   describeEmptyCompletion,
@@ -169,6 +170,8 @@ export interface GeneratePageContentInput {
   blockTemplates?: Record<string, string>;
   blockKeywords?: Record<string, string>;
   projectName?: string;
+  /** Референс-файлы (docs/text-reference) для стиля/структуры. Если не заданы — выбираются случайно. */
+  referenceFiles?: string[];
 }
 
 export async function generatePageContentCore(
@@ -200,6 +203,10 @@ export async function generatePageContentCore(
     input.pageType,
     input.language
   );
+  const referenceGuidance = buildReferenceGuidance(
+    input.pageType,
+    input.referenceFiles
+  );
   const userPrompt = generateUserPrompt(
     input.brand,
     input.language,
@@ -207,7 +214,8 @@ export async function generatePageContentCore(
     input.blocks,
     input.pageType,
     uniquenessHint || undefined,
-    input.blockKeywords
+    input.blockKeywords,
+    referenceGuidance || undefined
   );
 
   const completion = await openai.chat.completions.create({
@@ -253,6 +261,8 @@ export interface GenerateCustomPageContentInput {
   blockTemplates?: Record<string, string>;
   blockKeywords?: Record<string, string>;
   projectName?: string;
+  /** Референс-файлы (docs/text-reference) для стиля/структуры. Если не заданы — выбираются случайно. */
+  referenceFiles?: string[];
 }
 
 export async function generateCustomPageContentCore(
@@ -282,6 +292,10 @@ export async function generateCustomPageContentCore(
     input.pageName,
     input.language
   );
+  const referenceGuidance = buildReferenceGuidance(
+    input.pageName,
+    input.referenceFiles
+  );
   const userPrompt = generateUserPrompt(
     input.brand,
     input.language,
@@ -289,7 +303,8 @@ export async function generateCustomPageContentCore(
     input.blocks,
     input.pageName,
     uniquenessHint || undefined,
-    input.blockKeywords
+    input.blockKeywords,
+    referenceGuidance || undefined
   );
 
   const completion = await openai.chat.completions.create({
