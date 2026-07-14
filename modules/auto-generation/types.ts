@@ -50,16 +50,23 @@ export interface AutoDeployServerSpec {
   savedServerId?: string;
 }
 
+export type AutoBannerMode = "random" | "on" | "off";
+
 export interface AutoGenerationOptions {
   server: AutoDeployServerSpec;
   customPages?: AutoCustomPageSpec[];
   globalKeywords?: string;
+  /** Конкретная цветовая тема или "random"/undefined (по умолчанию рандом). */
+  themeChoice?: string;
+  /** Режим баннеров: on/off/random (по умолчанию рандом). */
+  bannerMode?: AutoBannerMode;
 }
 
 export interface AutoGenerationSelection {
-  templateName?: string;
   themeName?: string;
   pages?: Record<string, { blocks: string[]; blockTemplates: Record<string, string> }>;
+  /** Выбранная пара баннеров (или null, если баннеры выключены). */
+  banners?: { horizontalBrand: string; verticalBrand: string } | null;
 }
 
 export interface AutoGenerationState {

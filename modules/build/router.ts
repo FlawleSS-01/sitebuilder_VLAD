@@ -331,11 +331,22 @@ router.post("/create-project", appUpload.single("apk"), async (req, res) => {
       m.generationMode === "auto" ? ("auto" as const) : ("manual" as const);
     const autoGeneration = createInitialAutoGenerationState(generationMode);
     if (generationMode === "auto") {
+      const bannerModeRaw = m.bannerMode;
       autoGeneration.options = {
         globalKeywords:
           typeof m.globalKeywords === "string" ? m.globalKeywords : undefined,
         customPages: normalizeAutoCustomPages(m.customPages),
         server: m.autoGenerationOptions?.server as AutoGenerationOptions["server"],
+        themeChoice:
+          typeof m.themeChoice === "string" && m.themeChoice.trim()
+            ? m.themeChoice.trim()
+            : undefined,
+        bannerMode:
+          bannerModeRaw === "on" ||
+          bannerModeRaw === "off" ||
+          bannerModeRaw === "random"
+            ? bannerModeRaw
+            : undefined,
       };
     }
 
@@ -2504,6 +2515,8 @@ router.post("/project/:projectName/auto-generate", async (req, res) => {
       };
       globalKeywords?: string;
       customPages?: Array<{ name: string; slug?: string; blocks?: string[] }>;
+      themeChoice?: string;
+      bannerMode?: string;
     };
 
     if (!projectName || !projectExists(projectName)) {
@@ -2550,6 +2563,15 @@ router.post("/project/:projectName/auto-generate", async (req, res) => {
           (settings as Record<string, unknown> | null)?.customPages
         ) ||
         stored?.options?.customPages,
+      themeChoice:
+        (typeof body.themeChoice === "string" && body.themeChoice.trim()) ||
+        stored?.options?.themeChoice,
+      bannerMode:
+        body.bannerMode === "on" ||
+        body.bannerMode === "off" ||
+        body.bannerMode === "random"
+          ? body.bannerMode
+          : stored?.options?.bannerMode,
     };
 
     res.json({

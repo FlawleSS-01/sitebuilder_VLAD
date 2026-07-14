@@ -1477,15 +1477,22 @@ body[data-sb-style="magazine"] .sb-card::before {
 @media (max-width: 780px) {
   body[data-sb-style="magazine"] .sb-hero-inner {
     padding-right: 1.25rem;
-    padding-bottom: clamp(220px, 50vw, 320px);
+    padding-bottom: 0;
   }
+  /* На мобиле панель уходит в поток под контент (а не абсолютом поверх
+     кнопок/статистики) и становится компактным блоком. */
   body[data-sb-style="magazine"] .sb-hero-inner::after {
-    top: auto;
-    bottom: clamp(1rem, 4vw, 2rem);
-    right: 50%;
-    transform: translateX(50%);
-    width: min(90%, 420px);
+    position: static;
+    transform: none;
     animation: none;
+    margin-top: 1.5rem;
+    width: 100%;
+    max-width: 300px;
+    aspect-ratio: auto;
+    min-height: 76px;
+    padding: 0.85rem 1.1rem;
+    font-size: clamp(0.7rem, 2.8vw, 0.82rem);
+    line-height: 1.4;
   }
 }
 
@@ -2263,4 +2270,83 @@ body[data-sb-align="center"] .sb-hero-inner {
 body[data-sb-align="center"] .sb-stats,
 body[data-sb-align="center"] .sb-hero-actions {
   justify-content: center;
+}
+
+/* ============= Hero banners (cross-brand affiliate pair) ================
+   Пара «горизонтальный + вертикальный» из разных брендов. Раскладка
+   активна только когда на .sb-hero стоит data-has-banners="1", поэтому
+   сайты без баннеров не затрагиваются. Префикс body повышает
+   специфичность, чтобы перекрыть тематические варианты hero. */
+body .sb-hero[data-has-banners="1"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "top  top"
+    "main side";
+  align-items: center;
+  justify-items: center;
+  column-gap: clamp(1rem, 2.5vw, 2.5rem);
+  row-gap: clamp(1rem, 2.5vw, 1.75rem);
+  padding-block: clamp(1.5rem, 4vw, 2.75rem);
+  padding-inline: max(1.25rem, calc((100% - 1240px) / 2));
+}
+body .sb-hero[data-has-banners="1"] .sb-hero-inner {
+  grid-area: main;
+  justify-self: stretch;
+}
+.sb-hero-banner {
+  position: relative;
+  z-index: 2;
+  display: block;
+  line-height: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.sb-hero-banner:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.5);
+}
+.sb-hero-banner img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.sb-hero-banner--top {
+  grid-area: top;
+  width: 100%;
+  max-width: 728px;
+}
+/* Явный aspect-ratio гарантирует высоту даже до загрузки картинки —
+   без него баннер может схлопнуться в тонкую линию. */
+.sb-hero-banner--top img {
+  aspect-ratio: 728 / 90;
+}
+.sb-hero-banner--side {
+  grid-area: side;
+  width: 160px;
+  max-width: 100%;
+}
+.sb-hero-banner--side img {
+  aspect-ratio: 160 / 600;
+}
+@media (max-width: 900px) {
+  body .sb-hero[data-has-banners="1"] {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "top"
+      "main"
+      "side";
+  }
+  .sb-hero-banner--side {
+    margin-bottom: 0.5rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-hero-banner {
+    transition: none;
+  }
 }

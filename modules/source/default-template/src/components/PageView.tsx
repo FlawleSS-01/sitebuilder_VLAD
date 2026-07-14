@@ -9,6 +9,19 @@ const AFFILIATE =
   (import.meta.env.VITE_AFFILIATE_LINK as string | undefined) ||
   "#";
 
+const BANNER_TOP_SRC =
+  (import.meta.env.VITE_BANNER_TOP_SRC as string | undefined) || "";
+const BANNER_TOP_ALT =
+  (import.meta.env.VITE_BANNER_TOP_ALT as string | undefined) || "";
+const BANNER_SIDE_SRC =
+  (import.meta.env.VITE_BANNER_SIDE_SRC as string | undefined) || "";
+const BANNER_SIDE_ALT =
+  (import.meta.env.VITE_BANNER_SIDE_ALT as string | undefined) || "";
+const HAS_BANNERS =
+  (import.meta.env.VITE_BANNERS_ENABLED as string | undefined) === "1" &&
+  !!BANNER_TOP_SRC &&
+  !!BANNER_SIDE_SRC;
+
 type ImagesIndex = Record<
   string,
   { src?: string; alt?: string; title?: string } | undefined
@@ -249,11 +262,27 @@ function HeroBanner({ data }: { data: PageJson }) {
     ? { backgroundImage: `url(${heroRef.src})` }
     : undefined;
   return (
-    <section className="sb-hero">
+    <section className="sb-hero" {...(HAS_BANNERS ? { "data-has-banners": "1" } : {})}>
       {heroStyle ? (
         <div className="sb-hero-bg" style={heroStyle} role="img" aria-label={heroRef?.alt || ""} />
       ) : (
         <div className="sb-hero-bg sb-hero-fallback" aria-hidden="true" />
+      )}
+      {HAS_BANNERS && (
+        <a
+          className="sb-hero-banner sb-hero-banner--top"
+          href={AFFILIATE}
+          rel="noopener noreferrer sponsored"
+          aria-label={BANNER_TOP_ALT || "Promo"}
+        >
+          <img
+            src={BANNER_TOP_SRC}
+            alt={BANNER_TOP_ALT}
+            width={728}
+            height={90}
+            decoding="async"
+          />
+        </a>
       )}
       <div className="sb-hero-inner">
         <span className="sb-hero-eyebrow">Premium online casino</span>
@@ -284,6 +313,22 @@ function HeroBanner({ data }: { data: PageJson }) {
           </div>
         </div>
       </div>
+      {HAS_BANNERS && (
+        <a
+          className="sb-hero-banner sb-hero-banner--side"
+          href={AFFILIATE}
+          rel="noopener noreferrer sponsored"
+          aria-label={BANNER_SIDE_ALT || "Promo"}
+        >
+          <img
+            src={BANNER_SIDE_SRC}
+            alt={BANNER_SIDE_ALT}
+            width={160}
+            height={600}
+            decoding="async"
+          />
+        </a>
+      )}
     </section>
   );
 }

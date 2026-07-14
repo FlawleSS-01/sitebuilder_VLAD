@@ -3,8 +3,13 @@
 
 Имена каталогов = значения в API GET /api/build/templates и в селекте «Шаблон проекта».
 
-Текущие заготовки (копия default-template без node_modules в репозитории):
-  default-template, app, app-2, app-3, app-new-head
+Текущий шаблон:
+  default-template
+
+Примечание: раньше здесь лежали копии app, app-2, app-3, app-new-head — это были
+байт-в-байт дубликаты default-template (без node_modules), которые ничего не меняли
+во внешнем виде сайта. Они удалены. Разнообразие оформления обеспечивают цветовые
+темы (theme-presets) и режим баннеров, а не отдельные layout-шаблоны.
 
 Чтобы добавить свой шаблон: скопируйте дерево как у default-template (или сделайте robocopy /E /XD node_modules dist),
 затем в новой папке выполните npm install при необходимости.

@@ -108,6 +108,13 @@ const CreateProject: React.FC = () => {
     "manual"
   );
   const [globalKeywords, setGlobalKeywords] = useState("");
+  const [autoTheme, setAutoTheme] = useState<string>("random");
+  const [autoBannerMode, setAutoBannerMode] = useState<
+    "random" | "on" | "off"
+  >("random");
+  const [themeOptions, setThemeOptions] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
   const [deployServers, setDeployServers] = useState<SavedDeployServer[]>([]);
   const [selectedServerId, setSelectedServerId] = useState<string>("__new__");
   const [serverHost, setServerHost] = useState("");
@@ -280,6 +287,29 @@ const CreateProject: React.FC = () => {
       }
     };
     loadTemplates();
+  }, []);
+
+  useEffect(() => {
+    const loadThemes = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/build/themes`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const list = Array.isArray(data?.themes) ? data.themes : [];
+        const opts = list
+          .filter((t: unknown): t is { id: string } =>
+            !!t && typeof (t as { id?: unknown }).id === "string"
+          )
+          .map((t: { id: string; nameRu?: string; name?: string }) => ({
+            id: t.id,
+            label: t.nameRu || t.name || t.id,
+          }));
+        if (opts.length > 0) setThemeOptions(opts);
+      } catch {
+        // Список тем необязателен — по умолчанию доступен вариант «Рандом».
+      }
+    };
+    loadThemes();
   }, []);
 
   useEffect(() => {
@@ -534,6 +564,11 @@ const CreateProject: React.FC = () => {
         askBeforeBuild,
         generationMode,
         globalKeywords: globalKeywords.trim() || undefined,
+        themeChoice:
+          generationMode === "auto" && autoTheme !== "random"
+            ? autoTheme
+            : undefined,
+        bannerMode: generationMode === "auto" ? autoBannerMode : undefined,
         customPages: addCustomPages
           ? customPages
               .filter((p) => p.name.trim())
@@ -602,6 +637,8 @@ const CreateProject: React.FC = () => {
                   selectedServerId !== "__new__" ? selectedServerId : undefined,
               },
               globalKeywords: globalKeywords.trim() || undefined,
+              themeChoice: autoTheme !== "random" ? autoTheme : undefined,
+              bannerMode: autoBannerMode,
               customPages: metadata.customPages,
             }),
           }
@@ -991,6 +1028,49 @@ const CreateProject: React.FC = () => {
                   onChange={(e) => setGlobalKeywords(e.target.value)}
                   placeholder="бонус, VIP, мобильное приложение…"
                 />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="autoTheme">Тема оформления</label>
+                <select
+                  id="autoTheme"
+                  value={autoTheme}
+                  onChange={(e) => setAutoTheme(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="random">Случайная (по умолчанию)</option>
+                  {themeOptions.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+                <small>
+                  Выберите конкретную тему или оставьте «Случайная» — тогда
+                  тема подбирается автоматически.
+                </small>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="autoBannerMode">Рекламные баннеры</label>
+                <select
+                  id="autoBannerMode"
+                  value={autoBannerMode}
+                  onChange={(e) =>
+                    setAutoBannerMode(
+                      e.target.value as "random" | "on" | "off"
+                    )
+                  }
+                  disabled={loading}
+                >
+                  <option value="random">Случайно (по умолчанию)</option>
+                  <option value="on">С баннерами</option>
+                  <option value="off">Без баннеров</option>
+                </select>
+                <small>
+                  Пара баннеров (горизонтальный + вертикальный из разных
+                  брендов) размещается в hero-секции.
+                </small>
               </div>
 
               <div

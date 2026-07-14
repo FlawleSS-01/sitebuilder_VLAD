@@ -13,6 +13,12 @@ import {
   getAvailableThemes,
 } from "../build/utils/themeManager.js";
 import { updateProjectEnv } from "../build/utils/envManager.js";
+import {
+  getAvailableBannerBrands,
+  applyBannersToProject,
+  clearProjectBanners,
+  type AppliedBanners,
+} from "../build/utils/bannerManager.js";
 import { promptLanguageForLocale } from "../build/utils/localePresets.js";
 import {
   generatePageContentCore,
@@ -132,11 +138,27 @@ async function stepDesign(
     projectName,
     availableThemes: themes,
     customPages: options.customPages,
+    themeChoice: options.themeChoice,
+    availableBannerBrands: getAvailableBannerBrands(),
+    bannerMode: options.bannerMode,
   });
 
   copyThemeToProject(projectPath, plan.themeName);
   syncProjectIndexCssFromTemplate(projectPath);
   updateIndexCSS(projectPath, plan.themeName);
+
+  // Баннеры: пара «горизонтальный + вертикальный» из разных папок docs/.
+  let appliedBanners: AppliedBanners | null = null;
+  if (plan.banners) {
+    appliedBanners = applyBannersToProject(projectPath, plan.banners);
+    autoGenLog(
+      projectName,
+      `Баннеры: ${plan.banners.horizontalBrand.toUpperCase()} (гориз.) + ${plan.banners.verticalBrand.toUpperCase()} (верт.)`
+    );
+  } else {
+    clearProjectBanners(projectPath);
+    autoGenLog(projectName, "Баннеры: выключены для этого сайта");
+  }
 
   const settings = getProjectSettings(projectName);
   if (!settings) throw new Error(AUTO_ERRORS.projectNotFound);
@@ -147,8 +169,8 @@ async function stepDesign(
     autoGeneration: {
       ...(settings as Record<string, unknown>).autoGeneration as object,
       selection: {
-        templateName: plan.templateName,
         themeName: plan.themeName,
+        banners: plan.banners,
         pages: Object.fromEntries(
           plan.pages.map((p) => [
             p.pageType,
@@ -166,6 +188,7 @@ async function stepDesign(
     app: settings.app?.fileName || "/go",
     button1Text: plan.heroButtons.button1Text,
     button2Text: plan.heroButtons.button2Text,
+    banners: appliedBanners,
   });
 
   return { plan, cost };

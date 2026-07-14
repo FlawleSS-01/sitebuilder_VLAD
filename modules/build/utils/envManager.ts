@@ -1,6 +1,13 @@
 import fs from "fs";
 import path from "path";
 
+interface ProjectBannerEnv {
+  topSrc: string;
+  topAlt: string;
+  sideSrc: string;
+  sideAlt: string;
+}
+
 interface ProjectEnvVars {
   affiliateLink: string;
   brand: string;
@@ -8,6 +15,8 @@ interface ProjectEnvVars {
   app?: string;
   button1Text?: string;
   button2Text?: string;
+  /** Пара баннеров на hero (или null/undefined — без баннеров). */
+  banners?: ProjectBannerEnv | null;
 }
 
 /**
@@ -37,6 +46,17 @@ export const updateProjectEnv = (
   const button1Text = vars.button1Text || `Join ${brandUpper} Now`;
   const button2Text = vars.button2Text || "Download APK";
   
+  const banners = vars.banners;
+  const bannerContent = banners
+    ? `VITE_BANNERS_ENABLED=1
+VITE_BANNER_TOP_SRC=${banners.topSrc}
+VITE_BANNER_TOP_ALT=${banners.topAlt}
+VITE_BANNER_SIDE_SRC=${banners.sideSrc}
+VITE_BANNER_SIDE_ALT=${banners.sideAlt}
+`
+    : `VITE_BANNERS_ENABLED=0
+`;
+
   const envContent = `VITE_AFFILIATE_URL=${vars.affiliateLink || ""}
 VITE_APP=${appValue}
 VITE_SITE_NAME=${brandUpper}
@@ -44,7 +64,7 @@ VITE_SITE_URL=${siteUrl}
 VITE_SITE_LINK=${siteUrl}
 VITE_BUTTON1_TEXT=${button1Text}
 VITE_BUTTON2_TEXT=${button2Text}
-`;
+${bannerContent}`;
 
   // Записываем файл
   fs.writeFileSync(envPath, envContent, "utf-8");

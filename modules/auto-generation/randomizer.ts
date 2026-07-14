@@ -180,12 +180,38 @@ export interface PagePlan {
   imageCount: number;
 }
 
+/** Выбранная пара баннеров: горизонтальный и вертикальный из РАЗНЫХ папок. */
+export interface BannerPlan {
+  horizontalBrand: string;
+  verticalBrand: string;
+}
+
+export type BannerMode = "random" | "on" | "off";
+
 export interface AutoRandomPlan {
-  templateName: string;
   themeName: string;
   heroButtons: { button1Text: string; button2Text: string };
   faqCount: number;
   pages: PagePlan[];
+  /** null → баннеры выключены для этого сайта. */
+  banners: BannerPlan | null;
+}
+
+/**
+ * Подбирает пару баннеров: горизонтальный и вертикальный ОБЯЗАТЕЛЬНО из разных
+ * брендов (папок). Требуется минимум 2 доступных бренда.
+ */
+export function pickBannerPair(
+  rng: () => number,
+  brands: string[]
+): BannerPlan | null {
+  if (brands.length < 2) return null;
+  const [first, second] = pickManyUnique(rng, brands, 2);
+  // Случайно решаем, какой из двух брендов даёт горизонтальный креатив.
+  const horizontalFirst = rng() < 0.5;
+  return horizontalFirst
+    ? { horizontalBrand: first!, verticalBrand: second! }
+    : { horizontalBrand: second!, verticalBrand: first! };
 }
 
 const CTA_PAIRS: Array<{ button1Text: string; button2Text: string }> = [
@@ -194,14 +220,6 @@ const CTA_PAIRS: Array<{ button1Text: string; button2Text: string }> = [
   { button1Text: "Start Playing", button2Text: "Claim Offer" },
   { button1Text: "Register", button2Text: "Play Free" },
   { button1Text: "Bet Now", button2Text: "Download App" },
-];
-
-const TEMPLATE_IDS = [
-  "default-template",
-  "app",
-  "app-2",
-  "app-3",
-  "app-new-head",
 ];
 
 function imageCountForPage(pageType: string, isCustom: boolean): number {
@@ -248,15 +266,27 @@ export function buildAutoRandomPlan(input: {
   projectName: string;
   availableThemes: string[];
   customPages?: Array<{ name: string; slug?: string; blocks?: string[] }>;
+  /** Конкретная тема или "random"/undefined — тогда выбирается случайно. */
+  themeChoice?: string;
+  /** Доступные бренды баннеров (папки docs/ с полной парой креативов). */
+  availableBannerBrands?: string[];
+  /** on → всегда с баннерами, off → без, random/undefined → 50/50. */
+  bannerMode?: BannerMode;
 }): AutoRandomPlan {
   const rng = createSeededRng(`${input.projectName}-${Date.now()}`);
-  const templateName = pickOne(rng, TEMPLATE_IDS);
-  const themeName =
-    input.availableThemes.length > 0
-      ? pickOne(rng, input.availableThemes)
-      : "default";
+  const themeName = resolveThemeName(
+    rng,
+    input.availableThemes,
+    input.themeChoice
+  );
   const heroButtons = pickOne(rng, CTA_PAIRS);
   const faqCount = randInt(rng, 4, 7);
+
+  const banners = resolveBannerPlan(
+    rng,
+    input.availableBannerBrands || [],
+    input.bannerMode
+  );
 
   const pages: PagePlan[] = [];
 
@@ -293,12 +323,38 @@ export function buildAutoRandomPlan(input: {
   }
 
   return {
-    templateName,
     themeName,
     heroButtons,
     faqCount,
     pages,
+    banners,
   };
+}
+
+/** Тема: конкретная (если задана и доступна) либо случайная. */
+function resolveThemeName(
+  rng: () => number,
+  availableThemes: string[],
+  themeChoice?: string
+): string {
+  const choice = themeChoice?.trim();
+  if (choice && choice !== "random" && availableThemes.includes(choice)) {
+    return choice;
+  }
+  return availableThemes.length > 0 ? pickOne(rng, availableThemes) : "default";
+}
+
+/** Решает, включать ли баннеры, и подбирает пару из разных папок. */
+function resolveBannerPlan(
+  rng: () => number,
+  availableBannerBrands: string[],
+  bannerMode?: BannerMode
+): BannerPlan | null {
+  const mode: BannerMode = bannerMode || "random";
+  if (mode === "off") return null;
+  const enabled = mode === "on" ? true : rng() < 0.5;
+  if (!enabled) return null;
+  return pickBannerPair(rng, availableBannerBrands);
 }
 
 export function mergeGlobalKeywords(
