@@ -10,7 +10,7 @@
   --sb-accent-3: #00ff88;
   --sb-card: rgba(255,255,255,0.06);
   --sb-card-border: rgba(255,255,255,0.12);
-  --sb-header-bg: rgba(0,0,0,0.75);
+  --sb-header-bg: rgba(15, 15, 35, 0.94);
   --sb-hero-overlay: linear-gradient(
     115deg,
     rgba(15, 15, 35, 0.95) 0%,

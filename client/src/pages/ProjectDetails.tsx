@@ -31,6 +31,17 @@ import "./ProjectDetails.css";
 const API_URL = import.meta.env.VITE_API_URL || "";
 const MAX_APK_SIZE_BYTES = 20 * 1024 * 1024;
 
+function toSiteUrl(domain: string | undefined | null): string | null {
+  const value = (domain || "").trim();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://${value}`;
+}
+
+function domainLabel(domain: string): string {
+  return domain.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+}
+
 interface ProjectSettings {
   brand: string;
   language: string;
@@ -1853,6 +1864,13 @@ const ProjectDetails: React.FC = () => {
     );
   }
 
+  const projectSiteUrl = toSiteUrl(
+    isEditing ? editData.domain : project.domain
+  );
+  const projectDomainLabel = domainLabel(
+    (isEditing ? editData.domain : project.domain) || ""
+  );
+
   return (
     <div className="project-details-container">
       {project.autoGeneration?.mode === "auto" &&
@@ -1924,28 +1942,41 @@ const ProjectDetails: React.FC = () => {
       <div className="project-info-section">
         <div className="section-header">
           <h2>Информация о проекте</h2>
-          {!isEditing ? (
-            <button onClick={handleEdit} className="edit-button">
-              Редактировать
-            </button>
-          ) : (
-            <div className="edit-actions">
-              <button
-                onClick={handleCancel}
-                className="cancel-button"
-                disabled={saving}
+          <div className="section-header-right">
+            {projectSiteUrl ? (
+              <a
+                href={projectSiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="domain-link-button"
+                title="Открыть сайт на домене проекта"
               >
-                Отмена
+                {projectDomainLabel} ↗
+              </a>
+            ) : null}
+            {!isEditing ? (
+              <button onClick={handleEdit} className="edit-button">
+                Редактировать
               </button>
-              <button
-                onClick={handleSave}
-                className="save-button"
-                disabled={saving}
-              >
-                {saving ? "Сохранение..." : "Сохранить"}
-              </button>
-            </div>
-          )}
+            ) : (
+              <div className="edit-actions">
+                <button
+                  onClick={handleCancel}
+                  className="cancel-button"
+                  disabled={saving}
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="save-button"
+                  disabled={saving}
+                >
+                  {saving ? "Сохранение..." : "Сохранить"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {project.autoGeneration?.mode === "auto" &&

@@ -109,9 +109,7 @@ const CreateProject: React.FC = () => {
   );
   const [globalKeywords, setGlobalKeywords] = useState("");
   const [autoTheme, setAutoTheme] = useState<string>("random");
-  const [autoBannerMode, setAutoBannerMode] = useState<
-    "random" | "on" | "off"
-  >("random");
+  const [autoBannerMode, setAutoBannerMode] = useState<"on" | "off">("off");
   const [themeOptions, setThemeOptions] = useState<
     Array<{ id: string; label: string }>
   >([]);
@@ -1057,19 +1055,17 @@ const CreateProject: React.FC = () => {
                   id="autoBannerMode"
                   value={autoBannerMode}
                   onChange={(e) =>
-                    setAutoBannerMode(
-                      e.target.value as "random" | "on" | "off"
-                    )
+                    setAutoBannerMode(e.target.value as "on" | "off")
                   }
                   disabled={loading}
                 >
-                  <option value="random">Случайно (по умолчанию)</option>
-                  <option value="on">С баннерами</option>
                   <option value="off">Без баннеров</option>
+                  <option value="on">С баннерами</option>
                 </select>
                 <small>
-                  Пара баннеров (горизонтальный + вертикальный из разных
-                  брендов) размещается в hero-секции.
+                  По умолчанию баннеры выключены. При включении в hero-секцию
+                  добавляется пара: горизонтальный + вертикальный из разных
+                  брендов.
                 </small>
               </div>
 

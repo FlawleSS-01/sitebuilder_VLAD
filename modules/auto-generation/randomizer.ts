@@ -270,7 +270,7 @@ export function buildAutoRandomPlan(input: {
   themeChoice?: string;
   /** Доступные бренды баннеров (папки docs/ с полной парой креативов). */
   availableBannerBrands?: string[];
-  /** on → всегда с баннерами, off → без, random/undefined → 50/50. */
+  /** on → всегда с баннерами, off/undefined → без, random → 50/50 (legacy). */
   bannerMode?: BannerMode;
 }): AutoRandomPlan {
   const rng = createSeededRng(`${input.projectName}-${Date.now()}`);
@@ -350,7 +350,7 @@ function resolveBannerPlan(
   availableBannerBrands: string[],
   bannerMode?: BannerMode
 ): BannerPlan | null {
-  const mode: BannerMode = bannerMode || "random";
+  const mode: BannerMode = bannerMode || "off";
   if (mode === "off") return null;
   const enabled = mode === "on" ? true : rng() < 0.5;
   if (!enabled) return null;

@@ -89,6 +89,31 @@
   gap: 10px;
 }
 
+.section-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.domain-link-button {
+  padding: 7px 14px;
+  border-radius: var(--ui-radius-sm);
+  border: 1px solid var(--ui-border);
+  background-color: var(--ui-surface-3);
+  color: var(--ui-accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.18s, color 0.18s, transform 0.12s;
+}
+
+.domain-link-button:hover {
+  background-color: var(--ui-surface-2);
+  color: var(--ui-fg);
+  transform: translateY(-1px);
+}
+
 .edit-button,
 .save-button,
 .cancel-button {
